@@ -1,0 +1,100 @@
+{
+  "arm": "fast",
+  "candidate_root": "/Users/hangyu/Desktop/MiHaCoBench/experiment_mihaco/cand_fast",
+  "tasks": [
+    {
+      "id": "e01_csv_pulse",
+      "category": "easy",
+      "weight": 1.0,
+      "passed": 11,
+      "total": 11,
+      "partial": 1.0,
+      "strict": 1
+    },
+    {
+      "id": "a01_find_pair_indices",
+      "category": "algorithmic",
+      "weight": 2.0,
+      "passed": 13,
+      "total": 13,
+      "partial": 1.0,
+      "strict": 1
+    },
+    {
+      "id": "d01_ab_test_report",
+      "category": "data_analysis",
+      "weight": 3.0,
+      "passed": 11,
+      "total": 11,
+      "partial": 1.0,
+      "strict": 1
+    },
+    {
+      "id": "m01_tabular_classification",
+      "category": "ml",
+      "weight": 3.0,
+      "passed": 8,
+      "total": 8,
+      "partial": 1.0,
+      "strict": 1
+    },
+    {
+      "id": "c01_job_queue_sqla",
+      "category": "complex",
+      "weight": 5.0,
+      "passed": 12,
+      "total": 13,
+      "partial": 0.9231,
+      "strict": 0
+    },
+    {
+      "id": "lh01_two_step_tally",
+      "category": "long_horizon",
+      "weight": 1.0,
+      "passed": 4,
+      "total": 4,
+      "partial": 1.0,
+      "strict": 1
+    }
+  ],
+  "category_totals": {
+    "easy": {
+      "weight": 1.0,
+      "weighted": 1.0,
+      "strict": 1,
+      "n": 1
+    },
+    "algorithmic": {
+      "weight": 2.0,
+      "weighted": 2.0,
+      "strict": 1,
+      "n": 1
+    },
+    "data_analysis": {
+      "weight": 3.0,
+      "weighted": 3.0,
+      "strict": 1,
+      "n": 1
+    },
+    "ml": {
+      "weight": 3.0,
+      "weighted": 3.0,
+      "strict": 1,
+      "n": 1
+    },
+    "complex": {
+      "weight": 5.0,
+      "weighted": 4.6155,
+      "strict": 0,
+      "n": 1
+    },
+    "long_horizon": {
+      "weight": 1.0,
+      "weighted": 1.0,
+      "strict": 1,
+      "n": 1
+    }
+  },
+  "strict_total": "5/6",
+  "weighted_partial": 0.9744
+}
