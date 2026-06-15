@@ -1,7 +1,0 @@
-# Python bytecode and pytest caches from running the graders
-__pycache__/
-*.py[cod]
-.pytest_cache/
-
-# Transient runner output
-results.json
