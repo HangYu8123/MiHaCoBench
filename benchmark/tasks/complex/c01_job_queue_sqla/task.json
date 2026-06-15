@@ -1,0 +1,16 @@
+{
+  "id": "c01_job_queue_sqla",
+  "category": "complex",
+  "title": "Priority Job Queue with SQLAlchemy ORM",
+  "weight": 5,
+  "packages": ["SQLAlchemy", "stdlib"],
+  "entrypoints": {
+    "module": "queue_api.py",
+    "callables": ["JobQueue"],
+    "cli": false
+  },
+  "grader": "grader/test_c01.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

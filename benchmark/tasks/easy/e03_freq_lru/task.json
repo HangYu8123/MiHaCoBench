@@ -1,0 +1,12 @@
+{
+  "id": "e03_freq_lru",
+  "category": "easy",
+  "title": "Frequency-tracking LRU Cache",
+  "weight": 1,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["FreqLRU"], "cli": false},
+  "grader": "grader/test_e03.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "a03_window_maxima",
+  "category": "algorithmic",
+  "title": "Sliding-window maximum in O(n)",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["window_maxima"], "cli": false},
+  "grader": "grader/test_a03.py",
+  "steps": null,
+  "complexity_target": "O(n)",
+  "created": "2026-06-15"
+}

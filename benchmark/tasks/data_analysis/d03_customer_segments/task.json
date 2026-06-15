@@ -1,0 +1,12 @@
+{
+  "id": "d03_customer_segments",
+  "category": "data_analysis",
+  "title": "KMeans Customer Segmentation",
+  "weight": 3,
+  "packages": ["numpy", "pandas", "scikit-learn", "matplotlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["analyze"], "cli": true},
+  "grader": "grader/test_d03.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

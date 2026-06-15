@@ -1,0 +1,11 @@
+{
+  "chi2": 142.72872151543157,
+  "chi2_p": 2.6604451484576626e-28,
+  "dof": 6,
+  "dependent": true,
+  "corr_strongest_pair": [
+    "income",
+    "usage_hours"
+  ],
+  "corr_strongest_r": 0.8107638529260455
+}

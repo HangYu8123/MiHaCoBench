@@ -1,0 +1,16 @@
+{
+  "id": "c03_graph_engine",
+  "category": "complex",
+  "title": "Graph Engine: Data Structures and Classic Algorithms",
+  "weight": 5,
+  "packages": ["networkx", "numpy"],
+  "entrypoints": {
+    "module": "graph_engine.py",
+    "callables": ["Graph", "bfs", "dijkstra", "connected_components", "pagerank", "degree_centrality"],
+    "cli": false
+  },
+  "grader": "grader/test_c03.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

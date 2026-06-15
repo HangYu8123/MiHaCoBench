@@ -1,0 +1,16 @@
+{
+  "id": "c02_wsgi_microframework",
+  "category": "complex",
+  "title": "WSGI Micro-Framework",
+  "weight": 5,
+  "packages": ["jinja2"],
+  "entrypoints": {
+    "module": "app_factory.py",
+    "callables": ["create_app"],
+    "cli": false
+  },
+  "grader": "grader/test_c02.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

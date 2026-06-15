@@ -1,0 +1,16 @@
+order_id,region,product,quantity,unit_price,discount
+1,north,apple,10,2.50,0.10
+2,south,banana,5,1.20,0.05
+3,north,apple,3,2.50,0.00
+4,east,cherry,8,3.00,0.15
+5,south,banana,12,1.20,0.10
+6,north,cherry,2,3.00,0.05
+7,east,apple,7,2.50,0.00
+8,west,banana,4,1.20,0.00
+9,west,cherry,6,3.00,0.20
+10,east,apple,15,2.50,0.10
+11,south,apple,9,2.50,0.05
+12,north,banana,11,1.20,0.00
+13,west,apple,3,2.50,0.15
+14,east,cherry,5,3.00,0.00
+15,south,cherry,7,3.00,0.10

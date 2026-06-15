@@ -1,0 +1,12 @@
+{
+  "id": "m05_text_classification",
+  "category": "ml",
+  "title": "Binary text classification: sports vs tech",
+  "weight": 3,
+  "packages": ["scikit-learn", "numpy"],
+  "entrypoints": {"module": "solution.py", "callables": ["train", "predict"], "cli": false},
+  "grader": "grader/test_m05.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

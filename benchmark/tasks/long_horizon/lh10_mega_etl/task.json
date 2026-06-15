@@ -1,0 +1,12 @@
+{
+  "id": "lh10_mega_etl",
+  "category": "long_horizon",
+  "title": "20-step mega ETL pipeline",
+  "weight": 10,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "cli": true},
+  "grader": "grader/test_lh10.py",
+  "steps": 20,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "e01_csv_pulse",
+  "category": "easy",
+  "title": "CSV per-column statistics",
+  "weight": 1,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["summarize"], "cli": true},
+  "grader": "grader/test_e01.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

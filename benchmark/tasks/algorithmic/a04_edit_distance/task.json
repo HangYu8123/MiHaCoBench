@@ -1,0 +1,12 @@
+{
+  "id": "a04_edit_distance",
+  "category": "algorithmic",
+  "title": "Space-optimised Levenshtein edit distance",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["edit_distance"], "cli": false},
+  "grader": "grader/test_a04.py",
+  "steps": null,
+  "complexity_target": "O(n^2)",
+  "created": "2026-06-15"
+}

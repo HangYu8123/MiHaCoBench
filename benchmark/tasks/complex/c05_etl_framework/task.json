@@ -1,0 +1,16 @@
+{
+  "id": "c05_etl_framework",
+  "category": "complex",
+  "title": "YAML-driven ETL Pipeline Framework",
+  "weight": 5,
+  "packages": ["pandas", "SQLAlchemy", "pyyaml"],
+  "entrypoints": {
+    "module": "pipeline.py",
+    "callables": ["Pipeline"],
+    "cli": false
+  },
+  "grader": "grader/test_c05.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

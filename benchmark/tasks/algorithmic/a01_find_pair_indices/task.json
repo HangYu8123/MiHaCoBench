@@ -1,0 +1,12 @@
+{
+  "id": "a01_find_pair_indices",
+  "category": "algorithmic",
+  "title": "Two-sum with smallest-j tiebreaking",
+  "weight": 2,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["find_pair_indices"], "cli": false},
+  "grader": "grader/test_a01.py",
+  "steps": null,
+  "complexity_target": "O(n)",
+  "created": "2026-06-15"
+}

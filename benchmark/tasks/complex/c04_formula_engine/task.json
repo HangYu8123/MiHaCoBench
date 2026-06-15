@@ -1,0 +1,16 @@
+{
+  "id": "c04_formula_engine",
+  "category": "complex",
+  "title": "Spreadsheet Formula Engine",
+  "weight": 5,
+  "packages": ["numpy", "stdlib"],
+  "entrypoints": {
+    "module": "sheet.py",
+    "callables": ["Sheet"],
+    "cli": false
+  },
+  "grader": "grader/test_c04.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

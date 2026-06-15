@@ -1,0 +1,12 @@
+{
+  "id": "a05_resolve_build_order",
+  "category": "algorithmic",
+  "title": "Lexicographically-smallest topological sort (build order)",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["resolve_build_order"], "cli": false},
+  "grader": "grader/test_a05.py",
+  "steps": null,
+  "complexity_target": "O(n)",
+  "created": "2026-06-15"
+}
