@@ -1,0 +1,42 @@
+from collections import OrderedDict
+
+# Module-level sentinel — distinct from None so a legitimately cached None
+# is never mistaken for a cache miss.
+MISS = object()
+
+
+class LRU:
+    def __init__(self, capacity: int) -> None:
+        """Create a cache holding at most `capacity` entries (capacity >= 1)."""
+        self._capacity = capacity
+        self._od = OrderedDict()
+
+    def get(self, key):
+        """Return the cached value and mark `key` most-recently-used (MRU),
+        or return the module-level `MISS` sentinel if `key` is not cached."""
+        if key not in self._od:
+            return MISS
+        self._od.move_to_end(key)
+        return self._od[key]
+
+    def put(self, key, value) -> None:
+        """Insert OR update `key` with `value` and mark it MRU.
+
+        - A NEW key is inserted; if the cache would exceed `capacity`, the
+          LEAST-recently-used key is evicted.
+        - An EXISTING key has its stored value OVERWRITTEN with `value` and is
+          marked most-recently-used.
+        """
+        if key in self._od:
+            # Overwrite the stored value (critical fix — do NOT skip this step)
+            self._od[key] = value
+            self._od.move_to_end(key)
+        else:
+            self._od[key] = value
+            if len(self._od) > self._capacity:
+                # Evict least-recently-used (first item in OrderedDict)
+                self._od.popitem(last=False)
+
+    def invalidate(self, key) -> None:
+        """Drop `key` from the cache if present (a no-op when absent)."""
+        self._od.pop(key, None)

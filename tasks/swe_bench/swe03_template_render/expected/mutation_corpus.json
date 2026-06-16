@@ -1,0 +1,1705 @@
+{
+  "cases": [
+    {
+      "args": [
+        "{% for item in items1 %}{{ item }}{{ c.val }}{% for name in items1 %}{{ name }}{{ a }}{% endfor %}{% endfor %}{{ item }}",
+        {
+          "items1": [
+            "",
+            "C",
+            "ok"
+          ],
+          "a": "B",
+          "item": "A"
+        }
+      ],
+      "expected": "BCBokBCBCBokBokBCBokBA"
+    },
+    {
+      "args": [
+        "{% for x in items2 %}{{ x }}{% for y in items0 %}{{ y }}{{ b }}{% endfor %}{% for z in items1 %}{{ z }}[{% endfor %}{% endfor %}{{ z }}{{ a.a }}",
+        {
+          "items2": [
+            "ok",
+            "ok",
+            "hi"
+          ],
+          "items0": [
+            "",
+            "hi"
+          ],
+          "items1": [
+            "2"
+          ],
+          "z": "A",
+          "a": {
+            "a": ""
+          }
+        }
+      ],
+      "expected": "okhi2[okhi2[hihi2[A"
+    },
+    {
+      "args": [
+        "{{ b.val }}{% for row in items0 %}{{ row }}{% for item in items3 %}{{ item }}{{ item }}{{ name }}{{ y }}{% endfor %}{{ name }}{{ c.c }}{% endfor %}{{ row }}",
+        {
+          "b": {
+            "val": "C"
+          },
+          "items0": [
+            "A",
+            "C",
+            ""
+          ],
+          "items3": [
+            "ok",
+            ""
+          ],
+          "name": "1",
+          "c": {
+            "c": "C"
+          },
+          "row": "C"
+        }
+      ],
+      "expected": "CAokok111CCokok111Cokok111CC"
+    },
+    {
+      "args": [
+        "]]-{% for name in items0 %}{{ name }}{{ val.name }}{% for item in items1 %}{{ item }}{{ a }}{{ name }}|x:{% endfor %}{% endfor %}{{ name }}",
+        {
+          "items0": [
+            "B",
+            "",
+            "A"
+          ],
+          "val": {
+            "name": "C"
+          },
+          "items1": [
+            "B"
+          ]
+        }
+      ],
+      "expected": "]]-BCBB|x:CB|x:ACBA|x:"
+    },
+    {
+      "args": [
+        "{% for row in items0 %}{{ row }}{{ c }},:{% endfor %}{% for item in items0 %}{{ item }}{% for x in items0 %}{{ x }}{{ val }}{{ row }}{% endfor %}{% endfor %}",
+        {
+          "items0": [
+            "B",
+            "ok",
+            ""
+          ],
+          "row": "1"
+        }
+      ],
+      "expected": "B,:ok,:,:BB1ok11okB1ok11B1ok11"
+    },
+    {
+      "args": [
+        "{% for col in items0 %}{{ col }}{% for name in items2 %}{{ name }}:{{ y }}{% endfor %}{{ val.a }}{% for row in items2 %}{{ row }}{{ name }}{% endfor %}{% endfor %}",
+        {
+          "items0": [
+            "hi",
+            "ok",
+            "ok"
+          ],
+          "items2": [
+            "ok",
+            "A"
+          ],
+          "val": {
+            "a": ""
+          }
+        }
+      ],
+      "expected": "hiok:A:okAokok:A:okAokok:A:okA"
+    },
+    {
+      "args": [
+        "{% for val in items3 %}{{ val }}{{ a }}{% endfor %}{{ val.a }}{% for x in items1 %}{{ x }}{{ x }}{{ a.b }}{% endfor %}",
+        {
+          "items3": [
+            ""
+          ],
+          "val": {
+            "a": "B"
+          },
+          "items1": [
+            "",
+            "1",
+            "ok"
+          ]
+        }
+      ],
+      "expected": "B11okok"
+    },
+    {
+      "args": [
+        "{{ val }}{% for item in items1 %}{{ item }}{{ b }}{{ val.val }}{% endfor %}{{ item }}",
+        {
+          "val": "ok",
+          "items1": [
+            "1"
+          ],
+          "b": "3"
+        }
+      ],
+      "expected": "ok13"
+    },
+    {
+      "args": [
+        "{% for val in items3 %}{{ val }} - {{ name }}{% for item in items3 %}{{ item }}|:{{ y }}{% endfor %}{% endfor %}|{{ val }}",
+        {
+          "items3": [
+            "C"
+          ],
+          "y": "hi",
+          "val": ""
+        }
+      ],
+      "expected": "C - C|:hi|"
+    },
+    {
+      "args": [
+        "{% for name in items2 %}{{ name }}{{ y }}{% for row in items3 %}{{ row }} {{ val }}{% endfor %}{{ item }}{% endfor %}{{ a.b }}{{ name }}",
+        {
+          "items2": [
+            "C",
+            "3"
+          ],
+          "items3": [
+            "ok",
+            "3"
+          ],
+          "val": "3",
+          "item": "3",
+          "name": "hi"
+        }
+      ],
+      "expected": "Cok 33 333ok 33 33hi"
+    },
+    {
+      "args": [
+        "{% for name in items0 %}{{ name }}{% for row in items1 %}{{ row }}{{ a }}{% endfor %}{% for row in items1 %}{{ row }}]{% endfor %}{{ b.a }}{% endfor %}{% for z in items3 %}{{ z }}{{ name }}{{ val.c }},{% endfor %}",
+        {
+          "items0": [
+            "2"
+          ],
+          "items1": [
+            "C",
+            "A"
+          ],
+          "a": "3",
+          "b": {
+            "a": "hi"
+          },
+          "items3": [
+            "2"
+          ],
+          "name": "A"
+        }
+      ],
+      "expected": "2C3A3C]A]hi2A,"
+    },
+    {
+      "args": [
+        "{{ a.a }}{% for val in items3 %}{{ val }}{% for item in items1 %}{{ item }}-x{% endfor %}{{ item }}{% endfor %}{{ val }}",
+        {
+          "items3": [
+            "",
+            "ok",
+            ""
+          ],
+          "items1": [
+            "1"
+          ],
+          "item": "hi",
+          "val": "3"
+        }
+      ],
+      "expected": "1-xhiok1-xhi1-xhi3"
+    },
+    {
+      "args": [
+        "{% for row in items1 %}{{ row }}{{ b.a }}{% endfor %}{% for col in items0 %}{{ col }}{{ col }}{% endfor %}{% for col in items2 %}{{ col }}{{ val.c }}{{ row }}{{ item }}{% endfor %}",
+        {
+          "items1": [
+            "hi"
+          ],
+          "items0": [
+            "2",
+            "1"
+          ],
+          "items2": [
+            "B",
+            "C"
+          ],
+          "row": "B",
+          "item": "ok"
+        }
+      ],
+      "expected": "hi2211BBokCBok"
+    },
+    {
+      "args": [
+        "{{ b }}{% for item in items2 %}{{ item }}{{ c }}{% endfor %}{% for name in items0 %}{{ name }}{% for row in items1 %}{{ row }}|:x{% endfor %}{% for val in items2 %}{{ val }}{{ y }}{% endfor %}{{ val }}{% endfor %}",
+        {
+          "items2": [
+            "ok"
+          ],
+          "c": "hi",
+          "items0": [
+            "C",
+            "hi",
+            "ok"
+          ],
+          "items1": [
+            "",
+            "A"
+          ],
+          "y": "1",
+          "val": "B"
+        }
+      ],
+      "expected": "okhiC|:xA|:xok1Bhi|:xA|:xok1Bok|:xA|:xok1B"
+    },
+    {
+      "args": [
+        "{% for x in items3 %}{{ x }}{{ y }}:{% endfor %}{{ x }}{{ val.a }}",
+        {
+          "items3": [
+            "B",
+            "hi",
+            "ok"
+          ],
+          "x": ""
+        }
+      ],
+      "expected": "B:hi:ok:"
+    },
+    {
+      "args": [
+        ",|x{% for item in items1 %}{{ item }}{{ z }}{% for name in items3 %}{{ name }}-{% endfor %}{% for z in items2 %}{{ z }}[-{{ name }}{% endfor %}{% endfor %}{% for val in items2 %}{{ val }}][{% for z in items3 %}{{ z }}{% endfor %}{{ c.a }}{% endfor %}",
+        {
+          "items1": [
+            "B",
+            "hi",
+            "C"
+          ],
+          "items3": [],
+          "items2": [
+            "3",
+            "ok"
+          ],
+          "name": "B",
+          "c": {
+            "a": "A"
+          }
+        }
+      ],
+      "expected": ",|xB3[-Bok[-Bhi3[-Bok[-BC3[-Bok[-B3][Aok][A"
+    },
+    {
+      "args": [
+        "{{ z }}{% for val in items2 %}{{ val }}{{ val.name }}{% for x in items1 %}{{ x }}{{ a }}{% endfor %}{% endfor %}{% for x in items2 %}{{ x }}{{ x }}{{ val }}{% endfor %}",
+        {
+          "z": "",
+          "items2": [
+            "3",
+            "B",
+            "B"
+          ],
+          "items1": [
+            "3",
+            "hi",
+            "C"
+          ],
+          "val": "A"
+        }
+      ],
+      "expected": "33hiCB3hiCB3hiC33ABBABBA"
+    },
+    {
+      "args": [
+        "{% for val in items0 %}{{ val }}{{ row }}{% endfor %}{{ val }}{% for z in items2 %}{{ z }}{{ b }}{% endfor %}",
+        {
+          "items0": [
+            "B",
+            "B"
+          ],
+          "items2": [
+            "1",
+            "",
+            "C"
+          ],
+          "b": "3"
+        }
+      ],
+      "expected": "BB133C3"
+    },
+    {
+      "args": [
+        "{% for row in items0 %}{{ row }}|[{{ col }}{% for col in items2 %}{{ col }}{{ name }}-{% endfor %}{% endfor %}{{ c.b }}{{ row }}",
+        {
+          "items0": [
+            "2",
+            "A",
+            ""
+          ],
+          "items2": [],
+          "c": {
+            "b": "2"
+          },
+          "row": "A"
+        }
+      ],
+      "expected": "2|[A|[|[2A"
+    },
+    {
+      "args": [
+        "{% for col in items0 %}{{ col }}{{ row }}{{ b.c }}{% endfor %}{% for x in items3 %}{{ x }}{{ z }}{{ b }}{% for z in items1 %}{{ z }}||{{ c }}{{ x }}{% endfor %}{% endfor %}",
+        {
+          "items0": [
+            "C",
+            "ok",
+            "3"
+          ],
+          "row": "",
+          "items3": [
+            "2",
+            "A",
+            "C"
+          ],
+          "z": "3",
+          "items1": [
+            "2"
+          ]
+        }
+      ],
+      "expected": "Cok3232||2A32||AC32||C"
+    },
+    {
+      "args": [
+        "{% for x in items3 %}{{ x }}{{ z }}{% for col in items0 %}{{ col }}|][{% endfor %}{{ a.b }}{% endfor %}{{ col }}",
+        {
+          "items3": [
+            "2"
+          ],
+          "z": "ok",
+          "items0": [
+            "1",
+            "A",
+            "ok"
+          ],
+          "col": "C"
+        }
+      ],
+      "expected": "2ok1|][A|][ok|][C"
+    },
+    {
+      "args": [
+        "{% for name in items0 %}{{ name }}{{ a.c }}{% endfor %}{% for row in items3 %}{{ row }}{{ name }}{% for name in items2 %}{{ name }}{{ z }}{% endfor %}{% endfor %}{{ y }}",
+        {
+          "items0": [
+            "3",
+            "ok",
+            "ok"
+          ],
+          "a": {
+            "c": "A"
+          },
+          "items3": [
+            "2"
+          ],
+          "items2": [
+            "1",
+            "A",
+            "2"
+          ],
+          "z": "B"
+        }
+      ],
+      "expected": "3AokAokA21BAB2B"
+    },
+    {
+      "args": [
+        "{% for val in items0 %}{{ val }}{{ c }}{% for x in items2 %}{{ x }}{{ name }}{{ c }}{{ row }}{% endfor %}{{ name }}{% endfor %}{% for name in items0 %}{{ name }}{% for x in items1 %}{{ x }}:x {{ val }}{% endfor %}{% endfor %}",
+        {
+          "items0": [
+            "1",
+            "B",
+            "1"
+          ],
+          "c": "hi",
+          "items2": [
+            "A",
+            "3"
+          ],
+          "name": "",
+          "row": "ok",
+          "items1": [
+            "C"
+          ]
+        }
+      ],
+      "expected": "1hiAhiok3hiokBhiAhiok3hiok1hiAhiok3hiok1C:x BC:x 1C:x "
+    },
+    {
+      "args": [
+        "{% for col in items1 %}{{ col }}{{ val }}{{ b.a }}{% endfor %}{% for name in items2 %}{{ name }}{% for z in items0 %}{{ z }} {% endfor %}{{ x }}{% endfor %}{% for val in items0 %}{{ val }}{{ row }}{{ a.name }}{% for z in items2 %}{{ z }}{{ name }}{% endfor %}{% endfor %}",
+        {
+          "items1": [
+            "ok"
+          ],
+          "b": {
+            "a": "C"
+          },
+          "items2": [
+            "C",
+            "3",
+            "ok"
+          ],
+          "items0": [
+            "3",
+            "1"
+          ],
+          "x": "B",
+          "a": {
+            "name": "ok"
+          }
+        }
+      ],
+      "expected": "okCC3 1 B33 1 Bok3 1 B3okC3ok1okC3ok"
+    },
+    {
+      "args": [
+        "{% for x in items0 %}{{ x }},|{{ a.b }}{% endfor %}{{ b.c }}{% for name in items3 %}{{ name }}{% for z in items3 %}{{ z }}{{ x }}:]{% endfor %}{{ name }}{% for row in items1 %}{{ row }}{{ b }}{{ name }}{{ name }}{% endfor %}{% endfor %}",
+        {
+          "items0": [
+            "ok"
+          ],
+          "a": {
+            "b": "3"
+          },
+          "items3": [
+            "C"
+          ],
+          "x": "B",
+          "items1": [
+            "3",
+            "C"
+          ]
+        }
+      ],
+      "expected": "ok,|3CCB:]C3CCCCC"
+    },
+    {
+      "args": [
+        "{% for name in items3 %}{{ name }}{{ c }}{% endfor %}{{ name }}{{ item }}",
+        {
+          "items3": [
+            "B"
+          ],
+          "name": "",
+          "item": "2"
+        }
+      ],
+      "expected": "B2"
+    },
+    {
+      "args": [
+        ":{% for x in items3 %}{{ x }}{% for item in items1 %}{{ item }}:|{{ z }},[{% endfor %}{% for col in items0 %}{{ col }}{{ y }}{{ z }}|  {% endfor %}{% for y in items0 %}{{ y }}{{ c }} ,[{% endfor %}{% endfor %}{{ val.a }}",
+        {
+          "items3": [
+            "1",
+            "B"
+          ],
+          "items1": [
+            "1"
+          ],
+          "z": "hi",
+          "items0": [
+            "2"
+          ],
+          "y": "A",
+          "c": "A"
+        }
+      ],
+      "expected": ":11:|hi,[2Ahi|  2A ,[B1:|hi,[2Ahi|  2A ,["
+    },
+    {
+      "args": [
+        "{% for row in items1 %}{{ row }}{% for x in items2 %}{{ x }}{{ a }}{{ y }}{% endfor %}{% for z in items0 %}{{ z }}{{ val }}{% endfor %}{% endfor %}{{ row }}",
+        {
+          "items1": [
+            "",
+            "C"
+          ],
+          "items2": [
+            "B",
+            "B"
+          ],
+          "items0": [
+            "B",
+            "A",
+            ""
+          ],
+          "val": "B",
+          "row": "hi"
+        }
+      ],
+      "expected": "BBBBABBCBBBBABBhi"
+    },
+    {
+      "args": [
+        "{% for x in items3 %}{{ x }}{{ col }}{% for col in items0 %}{{ col }}{{ val }}: |{% endfor %}{% endfor %}{{ a.b }}",
+        {
+          "items3": [
+            "3",
+            "hi"
+          ],
+          "items0": [
+            "",
+            "hi",
+            "hi"
+          ],
+          "a": {
+            "b": "B"
+          }
+        }
+      ],
+      "expected": "3: |hi: |hi: |hi: |hi: |hi: |B"
+    },
+    {
+      "args": [
+        "{% for col in items2 %}{{ col }}{{ a.a }}{% endfor %}{{ a.c }}{{ col }}",
+        {
+          "items2": [
+            "ok",
+            "C"
+          ],
+          "a": {
+            "c": "hi"
+          }
+        }
+      ],
+      "expected": "okChi"
+    },
+    {
+      "args": [
+        "{{ val.c }}{% for row in items3 %}{{ row }}{{ z }}{% for val in items2 %}{{ val }}{% endfor %}{% endfor %}{% for x in items3 %}{{ x }}{{ b.b }}{{ row }}{% for col in items1 %}{{ col }},{% endfor %}{% endfor %}",
+        {
+          "val": {
+            "c": "2"
+          },
+          "items3": [
+            "hi"
+          ],
+          "z": "B",
+          "items2": [
+            "B"
+          ],
+          "b": {
+            "b": "hi"
+          },
+          "items1": []
+        }
+      ],
+      "expected": "2hiBBhihi"
+    },
+    {
+      "args": [
+        "{% for val in items1 %}{{ val }}{{ row }}:,{% endfor %}{{ a }}{{ val.a }}",
+        {
+          "items1": [
+            "ok"
+          ],
+          "val": {
+            "a": "2"
+          }
+        }
+      ],
+      "expected": "ok:,2"
+    },
+    {
+      "args": [
+        "{{ a }}{% for val in items1 %}{{ val }}{{ b.val }}{% endfor %}",
+        {
+          "a": "2",
+          "items1": [
+            "3"
+          ]
+        }
+      ],
+      "expected": "23"
+    },
+    {
+      "args": [
+        "{{ a.b }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{% for z in items3 %}{{ z }}{% for name in items3 %}{{ name }}{{ row }}{% endfor %}{% endfor %}{{ val.a }}",
+        {
+          "items3": [
+            "1",
+            "ok",
+            "2"
+          ],
+          "val": {
+            "a": "2"
+          }
+        }
+      ],
+      "expected": "11ok2ok1ok221ok22"
+    },
+    {
+      "args": [
+        "{{ name }}-[",
+        {}
+      ],
+      "expected": "-["
+    },
+    {
+      "args": [
+        "{{ a.c }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{% for name in items2 %}{{ name }}x|{{ name }}{% endfor %}{{ col }}",
+        {
+          "items2": []
+        }
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ val.c }}{{ b }}",
+        {
+          "val": {
+            "c": ""
+          }
+        }
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ row }}{% for x in items1 %}{{ x }}{{ y }}{{ z }}{% endfor %}{{ row }}",
+        {
+          "row": "3",
+          "items1": [
+            "1",
+            "3"
+          ],
+          "y": "3"
+        }
+      ],
+      "expected": "313333"
+    },
+    {
+      "args": [
+        "{{ val.b }}{% for row in items2 %}{{ row }}{{ name }}{{ y }}{% endfor %}",
+        {
+          "val": {
+            "b": "3"
+          },
+          "items2": [
+            ""
+          ]
+        }
+      ],
+      "expected": "3"
+    },
+    {
+      "args": [
+        "{% for item in items2 %}{{ item }}{{ a.a }}{{ col }}{% endfor %}{{ c.c }}",
+        {
+          "items2": [
+            "3",
+            "hi"
+          ],
+          "col": "ok",
+          "c": {
+            "c": "hi"
+          }
+        }
+      ],
+      "expected": "3okhiokhi"
+    },
+    {
+      "args": [
+        "[x{{ name }}",
+        {}
+      ],
+      "expected": "[x"
+    },
+    {
+      "args": [
+        "{{ item }}{{ z }}{{ val.val }}",
+        {
+          "val": {
+            "val": "3"
+          }
+        }
+      ],
+      "expected": "3"
+    },
+    {
+      "args": [
+        "{{ name.b }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ c.name }}{% for z in items3 %}{{ z }}{{ val }}{% for name in items3 %}{{ name }}{{ name }}[{% endfor %}x,{% endfor %}{{ a.c }}",
+        {
+          "items3": [
+            "2",
+            "",
+            "C"
+          ],
+          "val": "1",
+          "a": {
+            "c": ""
+          }
+        }
+      ],
+      "expected": "2122[[CC[x,122[[CC[x,C122[[CC[x,"
+    },
+    {
+      "args": [
+        "{{ x }},-{% for row in items1 %}{{ row }}{{ item }}{% endfor %}",
+        {
+          "items1": [],
+          "item": "2"
+        }
+      ],
+      "expected": ",-"
+    },
+    {
+      "args": [
+        "{{ val.c }}{{ c }}{{ val.val }}",
+        {
+          "val": {
+            "c": "hi"
+          },
+          "c": "A"
+        }
+      ],
+      "expected": "hiA"
+    },
+    {
+      "args": [
+        "{{ c.name }}{{ c.b }}",
+        {
+          "c": {
+            "b": "ok"
+          }
+        }
+      ],
+      "expected": "ok"
+    },
+    {
+      "args": [
+        "{{ a.val }}{% for name in items1 %}{{ name }}{{ c }}{{ z }}{% endfor %}{{ name.name }}",
+        {
+          "a": {
+            "val": ""
+          },
+          "items1": []
+        }
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ item }}{{ c.name }}",
+        {
+          "item": "2"
+        }
+      ],
+      "expected": "2"
+    },
+    {
+      "args": [
+        "{% for y in items2 %}{{ y }}]]-{% for x in items2 %}{{ x }}{{ col }}{% endfor %}{% endfor %}{{ c.a }}{{ val }}",
+        {
+          "items2": [
+            "A",
+            "A"
+          ],
+          "col": "ok",
+          "c": {
+            "a": "ok"
+          }
+        }
+      ],
+      "expected": "A]]-AokAokA]]-AokAokok"
+    },
+    {
+      "args": [
+        "{{ b.name }}{{ name.b }}",
+        {
+          "b": {
+            "name": "hi"
+          }
+        }
+      ],
+      "expected": "hi"
+    },
+    {
+      "args": [
+        "{% for name in items1 %}{{ name }}{{ col }}{{ a.a }}{{ c.val }}{% endfor %}{{ a.a }}",
+        {
+          "items1": [
+            "",
+            "3",
+            ""
+          ],
+          "a": {
+            "a": "A"
+          },
+          "c": {
+            "val": "B"
+          }
+        }
+      ],
+      "expected": "AB3ABABA"
+    },
+    {
+      "args": [
+        "{{ val.b }}{{ row }}{% for y in items1 %}{{ y }}{% for item in items3 %}{{ item }}{{ b }}|{% endfor %}{{ c.val }}{{ y }}{% endfor %}",
+        {
+          "val": {
+            "b": "C"
+          },
+          "items1": [
+            "3"
+          ],
+          "items3": [
+            "1",
+            "B"
+          ],
+          "b": "",
+          "c": {
+            "val": "hi"
+          }
+        }
+      ],
+      "expected": "C31|B|hi3"
+    },
+    {
+      "args": [
+        "{{ b.a }}{% for x in items3 %}{{ x }}{% for val in items1 %}{{ val }}{{ row }}x,{{ row }}{% endfor %}-][{{ c.b }}{% endfor %},- ",
+        {
+          "items3": [
+            "2"
+          ],
+          "items1": [
+            "1",
+            "B",
+            "C"
+          ],
+          "row": "C"
+        }
+      ],
+      "expected": "21Cx,CBCx,CCCx,C-][,- "
+    },
+    {
+      "args": [
+        "{{ a.a }}{% for z in items1 %}{{ z }}-{% endfor %}{% for row in items1 %}{{ row }}{% for row in items2 %}{{ row }}]x:{{ val }}{% endfor %}{% for row in items3 %}{{ row }},{{ x }}{{ y }}{% endfor %}{{ name }}{% endfor %}",
+        {
+          "a": {
+            "a": ""
+          },
+          "items1": [
+            "A",
+            "2"
+          ],
+          "items2": [
+            "1",
+            "A"
+          ],
+          "val": "",
+          "items3": [
+            "",
+            "C"
+          ]
+        }
+      ],
+      "expected": "A-2-A1]x:A]x:,C,21]x:A]x:,C,"
+    },
+    {
+      "args": [
+        "{% for row in items2 %}{{ row }}{{ val.name }}{% endfor %}",
+        {
+          "items2": [
+            "ok"
+          ]
+        }
+      ],
+      "expected": "ok"
+    },
+    {
+      "args": [
+        "{% for z in items3 %}{{ z }}{{ c }}{{ z }}{% endfor %}{% for y in items2 %}{{ y }}{{ b.c }}{{ val.b }}{% endfor %}",
+        {
+          "items3": [
+            "",
+            ""
+          ],
+          "items2": [
+            "ok",
+            "C",
+            "C"
+          ],
+          "val": {
+            "b": "3"
+          }
+        }
+      ],
+      "expected": "ok3C3C3"
+    },
+    {
+      "args": [
+        "{{ c.val }}{{ c.name }}",
+        {
+          "c": {
+            "name": "B"
+          }
+        }
+      ],
+      "expected": "B"
+    },
+    {
+      "args": [
+        "{{ name.val }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ name.b }},]-",
+        {}
+      ],
+      "expected": ",]-"
+    },
+    {
+      "args": [
+        "{{ item }}|[ {{ a.val }}",
+        {
+          "item": "1"
+        }
+      ],
+      "expected": "1|[ "
+    },
+    {
+      "args": [
+        "{{ val }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ val.c }}|",
+        {}
+      ],
+      "expected": "|"
+    },
+    {
+      "args": [
+        "{% for z in items3 %}{{ z }}{% endfor %}{% for x in items3 %}{{ x }}{{ a }}{% endfor %}{{ name.val }}",
+        {
+          "items3": [
+            "2",
+            "2",
+            "hi"
+          ],
+          "a": "hi"
+        }
+      ],
+      "expected": "22hi2hi2hihihi"
+    },
+    {
+      "args": [
+        "{{ col }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ val }}{% for item in items1 %}{{ item }}{{ col }}{{ a }}{% endfor %}{{ b.c }}",
+        {
+          "val": "hi",
+          "items1": [
+            "A",
+            "hi"
+          ],
+          "a": "1",
+          "b": {
+            "c": "1"
+          }
+        }
+      ],
+      "expected": "hiA1hi11"
+    },
+    {
+      "args": [
+        "-{{ z }}",
+        {}
+      ],
+      "expected": "-"
+    },
+    {
+      "args": [
+        "{{ name }}{{ item }}",
+        {
+          "name": "A"
+        }
+      ],
+      "expected": "A"
+    },
+    {
+      "args": [
+        "{% for item in items0 %}{{ item }}{{ z }}|,{% endfor %}{{ name }}{{ x }}",
+        {
+          "items0": [
+            "3"
+          ],
+          "z": "B"
+        }
+      ],
+      "expected": "3B|,"
+    },
+    {
+      "args": [
+        "{% for row in items1 %}{{ row }}{% for z in items3 %}{{ z }}{{ y }}]-|{{ name }}{% endfor %}{{ c.c }}{% endfor %}{% for z in items2 %}{{ z }}{{ y }}{% endfor %} |,",
+        {
+          "items1": [],
+          "items3": [
+            "A"
+          ],
+          "c": {
+            "c": "2"
+          },
+          "items2": [
+            "hi",
+            "3"
+          ]
+        }
+      ],
+      "expected": "hi3 |,"
+    },
+    {
+      "args": [
+        "{{ val.a }}{% for y in items0 %}{{ y }}{{ name }}{{ a.c }}{{ b.b }}{% endfor %}",
+        {
+          "val": {
+            "a": "hi"
+          },
+          "items0": [
+            "",
+            "hi",
+            "2"
+          ],
+          "a": {
+            "c": "A"
+          }
+        }
+      ],
+      "expected": "hiAhiA2A"
+    },
+    {
+      "args": [
+        "{{ name.b }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ b.name }}{{ c.val }}",
+        {
+          "b": {
+            "name": "B"
+          }
+        }
+      ],
+      "expected": "B"
+    },
+    {
+      "args": [
+        "{% for name in items3 %}{{ name }}{{ y }}{% for item in items0 %}{{ item }}{{ x }}{% endfor %}{% endfor %}{% for x in items2 %}{{ x }}{% for x in items1 %}{{ x }}{{ z }}{{ name }}{% endfor %}{% endfor %}",
+        {
+          "items3": [
+            "ok"
+          ],
+          "items0": [
+            "ok",
+            "ok",
+            "3"
+          ],
+          "x": "3",
+          "items2": [],
+          "items1": [
+            "A",
+            "3"
+          ],
+          "name": "B"
+        }
+      ],
+      "expected": "okok3ok333"
+    },
+    {
+      "args": [
+        "{{ a }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ val.val }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ a.a }}{% for val in items3 %}{{ val }}{% for val in items0 %}{{ val }}x{{ x }}{{ name }}{% endfor %}{{ val.c }}{% endfor %} x",
+        {
+          "items3": [
+            "hi"
+          ],
+          "items0": [
+            "C"
+          ]
+        }
+      ],
+      "expected": "hiCx x"
+    },
+    {
+      "args": [
+        "{% for y in items3 %}{{ y }},x{% endfor %}{{ item }}",
+        {
+          "items3": [
+            "hi",
+            "1"
+          ]
+        }
+      ],
+      "expected": "hi,x1,x"
+    },
+    {
+      "args": [
+        "{{ c.val }}{{ c.b }}",
+        {
+          "c": {
+            "val": "ok"
+          }
+        }
+      ],
+      "expected": "ok"
+    },
+    {
+      "args": [
+        "{% for val in items2 %}{{ val }}{% endfor %}{{ b.a }}",
+        {
+          "items2": [
+            "A",
+            "1",
+            "A"
+          ]
+        }
+      ],
+      "expected": "A1A"
+    },
+    {
+      "args": [
+        "{% for item in items1 %}{{ item }}{% for y in items0 %}{{ y }}{{ a }}{{ z }}{% endfor %} [{% for name in items1 %}{{ name }}{{ z }}{{ z }}{% endfor %}{% endfor %}]--{{ name.a }}",
+        {
+          "items1": [
+            "",
+            "hi",
+            ""
+          ],
+          "items0": [],
+          "a": "1",
+          "z": "ok"
+        }
+      ],
+      "expected": " [okokhiokokokokhi [okokhiokokokok [okokhiokokokok]--"
+    },
+    {
+      "args": [
+        "{{ row }}{{ z }}",
+        {
+          "z": "2"
+        }
+      ],
+      "expected": "2"
+    },
+    {
+      "args": [
+        "{{ a }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ col }}{% for row in items2 %}{{ row }}{% for col in items1 %}{{ col }}{{ z }}{{ a }}{% endfor %}{% for x in items2 %}{{ x }}{{ val }}{{ val }}{% endfor %}{% endfor %}{{ b }}",
+        {
+          "col": "hi",
+          "items2": [
+            "hi",
+            "3"
+          ],
+          "items1": [
+            "3"
+          ],
+          "val": "B",
+          "b": "3"
+        }
+      ],
+      "expected": "hihi3hiBB3BB33hiBB3BB3"
+    },
+    {
+      "args": [
+        "{{ col }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ b }}{{ val.a }}{{ name.a }}",
+        {
+          "val": {
+            "a": "B"
+          }
+        }
+      ],
+      "expected": "B"
+    },
+    {
+      "args": [
+        "{% for row in items2 %}{{ row }}{{ b }}{% endfor %}-x{{ a.val }}",
+        {
+          "items2": [
+            ""
+          ],
+          "b": "3"
+        }
+      ],
+      "expected": "3-x"
+    },
+    {
+      "args": [
+        "{{ item }}{% for val in items3 %}{{ val }}{{ row }}][{% endfor %}{{ b.b }}",
+        {
+          "items3": [
+            "ok",
+            "3",
+            "2"
+          ],
+          "row": "3",
+          "b": {
+            "b": "B"
+          }
+        }
+      ],
+      "expected": "ok3][33][23][B"
+    },
+    {
+      "args": [
+        "{% for y in items2 %}{{ y }}{% for col in items0 %}{{ col }},|,{{ item }}{% endfor %}{{ val }}{% for col in items0 %}{{ col }}[-|{% endfor %}{% endfor %}{{ name.c }}{{ val.val }}",
+        {
+          "items2": [],
+          "items0": [
+            "C",
+            "A"
+          ],
+          "item": "",
+          "val": {
+            "val": "C"
+          }
+        }
+      ],
+      "expected": "C"
+    },
+    {
+      "args": [
+        "{% for row in items2 %}{{ row }}{% for val in items3 %}{{ val }}- [|{% endfor %}{% endfor %}{{ val }}",
+        {
+          "items2": [],
+          "items3": []
+        }
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ val.name }}{{ c.name }}{{ c.b }}",
+        {
+          "val": {
+            "name": "B"
+          },
+          "c": {
+            "b": "B"
+          }
+        }
+      ],
+      "expected": "BB"
+    },
+    {
+      "args": [
+        "{{ name.b }}{% for name in items0 %}{{ name }}{{ row }}{% endfor %}",
+        {
+          "items0": [
+            "1"
+          ],
+          "row": "3"
+        }
+      ],
+      "expected": "13"
+    },
+    {
+      "args": [
+        "{{ val }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ name.val }}{{ name.a }}",
+        {
+          "name": {
+            "a": "A"
+          }
+        }
+      ],
+      "expected": "A"
+    },
+    {
+      "args": [
+        "{{ b }}{{ c.c }}x-]",
+        {
+          "c": {
+            "c": "ok"
+          }
+        }
+      ],
+      "expected": "okx-]"
+    },
+    {
+      "args": [
+        "{% for val in items0 %}{{ val }}{{ a.a }}{{ c.name }}{% endfor %}",
+        {
+          "items0": [
+            "hi"
+          ],
+          "c": {
+            "name": "C"
+          }
+        }
+      ],
+      "expected": "hiC"
+    },
+    {
+      "args": [
+        "{{ val }}{{ y }}{% for item in items2 %}{{ item }}{{ x }}{% for z in items2 %}{{ z }}{{ name }}] {{ x }}{% endfor %}:--{% endfor %}",
+        {
+          "val": "1",
+          "items2": [
+            ""
+          ],
+          "x": "ok",
+          "name": "1"
+        }
+      ],
+      "expected": "1ok1] ok:--"
+    },
+    {
+      "args": [
+        "{{ b.b }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ val.c }}{{ name.name }}{{ a.name }}",
+        {
+          "a": {
+            "name": "hi"
+          }
+        }
+      ],
+      "expected": "hi"
+    },
+    {
+      "args": [
+        "{% for item in items0 %}{{ item }},{{ col }}{% endfor %}{% for z in items2 %}{{ z }} |:{{ y }}{% endfor %}",
+        {
+          "items0": [
+            "B"
+          ],
+          "items2": [
+            "3",
+            "C",
+            "C"
+          ],
+          "y": "2"
+        }
+      ],
+      "expected": "B,3 |:2C |:2C |:2"
+    },
+    {
+      "args": [
+        "{% for y in items1 %}{{ y }}{{ c.c }}{{ a.c }}{% endfor %}{{ name }}{{ b.b }}",
+        {
+          "items1": [
+            "1",
+            "2",
+            "B"
+          ],
+          "c": {
+            "c": "ok"
+          },
+          "a": {
+            "c": "B"
+          },
+          "b": {
+            "b": "B"
+          }
+        }
+      ],
+      "expected": "1okB2okBBokBB"
+    },
+    {
+      "args": [
+        "{{ z }}{% for item in items0 %}{{ item }}{% for col in items1 %}{{ col }}{{ a }}{% endfor %}:{% endfor %}",
+        {
+          "items0": [],
+          "items1": [],
+          "a": "A"
+        }
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ name }}[-x{{ c }}",
+        {
+          "name": "A"
+        }
+      ],
+      "expected": "A[-x"
+    },
+    {
+      "args": [
+        "{% for col in items2 %}{{ col }}{{ b }}{{ c }}{% for col in items3 %}{{ col }}]-{% endfor %}{% endfor %}{{ c.a }}",
+        {
+          "items2": [
+            "",
+            "B"
+          ],
+          "b": "1",
+          "items3": []
+        }
+      ],
+      "expected": "1B1"
+    },
+    {
+      "args": [
+        "{% for row in items1 %}{{ row }}{{ a.name }}{% endfor %}",
+        {
+          "items1": [
+            "B",
+            "1",
+            "1"
+          ]
+        }
+      ],
+      "expected": "B11"
+    },
+    {
+      "args": [
+        "{{ c.b }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ val.c }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{% for x in items3 %}{{ x }}{{ name }}{% endfor %}:{{ a.c }}",
+        {
+          "items3": [],
+          "name": "ok"
+        }
+      ],
+      "expected": ":"
+    },
+    {
+      "args": [
+        "{% for x in items3 %}{{ x }}{{ c.val }}{{ val.val }}x[]{% endfor %}{{ c }}",
+        {
+          "items3": [
+            "3"
+          ],
+          "val": {
+            "val": "1"
+          }
+        }
+      ],
+      "expected": "31x[]"
+    },
+    {
+      "args": [
+        "{% for val in items1 %}{{ val }}{{ val.val }}{% endfor %}{{ val.c }}",
+        {
+          "items1": [
+            "3",
+            "B",
+            "2"
+          ],
+          "val": {
+            "c": "2"
+          }
+        }
+      ],
+      "expected": "3B22"
+    },
+    {
+      "args": [
+        "{{ z }}{{ name.name }}",
+        {
+          "name": {
+            "name": "1"
+          }
+        }
+      ],
+      "expected": "1"
+    },
+    {
+      "args": [
+        "{{ b.b }}{{ val }}",
+        {
+          "val": ""
+        }
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{{ z }}:  {{ a.val }}",
+        {
+          "a": {
+            "val": "ok"
+          }
+        }
+      ],
+      "expected": ":  ok"
+    },
+    {
+      "args": [
+        "{{ b }}{{ col }}",
+        {
+          "col": "C"
+        }
+      ],
+      "expected": "C"
+    },
+    {
+      "args": [
+        "{% for row in items3 %}{{ row }}{{ z }}{% endfor %}",
+        {
+          "items3": [
+            "A",
+            "B"
+          ]
+        }
+      ],
+      "expected": "AB"
+    },
+    {
+      "args": [
+        "{{ x }}",
+        {}
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "{% for x in items2 %}{{ x }}[]{% endfor %}{{ c.a }}{% for row in items1 %}{{ row }}:],{{ b }}{% endfor %}",
+        {
+          "items2": [
+            "hi",
+            "2",
+            "ok"
+          ],
+          "c": {
+            "a": "ok"
+          },
+          "items1": [
+            "hi"
+          ]
+        }
+      ],
+      "expected": "hi[]2[]ok[]okhi:],"
+    },
+    {
+      "args": [
+        "{% for z in items3 %}{{ z }}{{ val }}{{ b.val }}{{ c }}{% endfor %}[]",
+        {
+          "items3": [
+            "2"
+          ],
+          "b": {
+            "val": "hi"
+          }
+        }
+      ],
+      "expected": "2hi[]"
+    }
+  ],
+  "meta": {
+    "n_probed": 2506,
+    "n_kept": 120,
+    "n_cover": 1,
+    "n_wrong_solutions": 3,
+    "killed": 2,
+    "killable": 2,
+    "likely_equivalent": 1,
+    "kill_rate": 1.0,
+    "oracle": "jinja2 (ChainableUndefined) \u2014 true external template engine",
+    "provenance": "jinja2 issue #641 (loop-variable scope tightened in 2.9); template loop scoping",
+    "input_seed": 20260616,
+    "jinja2_version": "3.1.5"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "cb07_graph_spectral",
+  "category": "compositional",
+  "title": "Graph Laplacian Spectral Partition with networkx + scipy.linalg",
+  "weight": 4,
+  "packages": ["networkx", "scipy", "numpy"],
+  "entrypoints": {"module": "solution.py", "callables": ["spectral_partition"], "cli": false},
+  "grader": "grader/test_cb07.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-16"
+}

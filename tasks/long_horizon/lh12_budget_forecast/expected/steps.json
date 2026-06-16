@@ -1,0 +1,432 @@
+{
+  "1": {
+    "data": [
+      {
+        "date": "2024-01-05",
+        "amount": 3000.0,
+        "category": "salary"
+      },
+      {
+        "date": "2024-01-12",
+        "amount": 1200.0,
+        "category": "rent"
+      },
+      {
+        "date": "2024-01-20",
+        "amount": 450.0,
+        "category": "groceries"
+      },
+      {
+        "date": "2024-01-25",
+        "amount": 150.0,
+        "category": "utilities"
+      },
+      {
+        "date": "2024-02-05",
+        "amount": 3000.0,
+        "category": "salary"
+      },
+      {
+        "date": "2024-02-12",
+        "amount": 1200.0,
+        "category": "rent"
+      },
+      {
+        "date": "2024-02-18",
+        "amount": 400.0,
+        "category": "groceries"
+      },
+      {
+        "date": "2024-02-22",
+        "amount": 140.0,
+        "category": "utilities"
+      },
+      {
+        "date": "2024-02-28",
+        "amount": 200.0,
+        "category": "freelance"
+      },
+      {
+        "date": "2024-03-05",
+        "amount": 3000.0,
+        "category": "salary"
+      },
+      {
+        "date": "2024-03-12",
+        "amount": 1200.0,
+        "category": "rent"
+      },
+      {
+        "date": "2024-03-19",
+        "amount": 380.0,
+        "category": "groceries"
+      },
+      {
+        "date": "2024-03-24",
+        "amount": 130.0,
+        "category": "utilities"
+      },
+      {
+        "date": "2024-03-27",
+        "amount": 500.0,
+        "category": "freelance"
+      },
+      {
+        "date": "2024-04-05",
+        "amount": 3000.0,
+        "category": "salary"
+      },
+      {
+        "date": "2024-04-12",
+        "amount": 1200.0,
+        "category": "rent"
+      },
+      {
+        "date": "2024-04-17",
+        "amount": 360.0,
+        "category": "groceries"
+      },
+      {
+        "date": "2024-04-23",
+        "amount": 120.0,
+        "category": "utilities"
+      },
+      {
+        "date": "2024-04-29",
+        "amount": 800.0,
+        "category": "freelance"
+      },
+      {
+        "date": "2024-05-05",
+        "amount": 3000.0,
+        "category": "salary"
+      },
+      {
+        "date": "2024-05-13",
+        "amount": 1200.0,
+        "category": "rent"
+      },
+      {
+        "date": "2024-05-16",
+        "amount": 340.0,
+        "category": "groceries"
+      },
+      {
+        "date": "2024-05-21",
+        "amount": 110.0,
+        "category": "utilities"
+      },
+      {
+        "date": "2024-05-26",
+        "amount": 50.0,
+        "category": "mystery"
+      },
+      {
+        "date": "2024-05-30",
+        "amount": 1100.0,
+        "category": "freelance"
+      },
+      {
+        "date": "2024-06-05",
+        "amount": 3000.0,
+        "category": "salary"
+      },
+      {
+        "date": "2024-06-11",
+        "amount": 1200.0,
+        "category": "rent"
+      },
+      {
+        "date": "2024-06-15",
+        "amount": 320.0,
+        "category": "groceries"
+      },
+      {
+        "date": "2024-06-20",
+        "amount": 100.0,
+        "category": "utilities"
+      },
+      {
+        "date": "2024-06-28",
+        "amount": 1400.0,
+        "category": "freelance"
+      }
+    ]
+  },
+  "2": {
+    "data": [
+      {
+        "date": "2024-01-05",
+        "amount": 3000.0,
+        "category": "salary",
+        "net": 3000.0
+      },
+      {
+        "date": "2024-01-12",
+        "amount": 1200.0,
+        "category": "rent",
+        "net": -1200.0
+      },
+      {
+        "date": "2024-01-20",
+        "amount": 450.0,
+        "category": "groceries",
+        "net": -450.0
+      },
+      {
+        "date": "2024-01-25",
+        "amount": 150.0,
+        "category": "utilities",
+        "net": -150.0
+      },
+      {
+        "date": "2024-02-05",
+        "amount": 3000.0,
+        "category": "salary",
+        "net": 3000.0
+      },
+      {
+        "date": "2024-02-12",
+        "amount": 1200.0,
+        "category": "rent",
+        "net": -1200.0
+      },
+      {
+        "date": "2024-02-18",
+        "amount": 400.0,
+        "category": "groceries",
+        "net": -400.0
+      },
+      {
+        "date": "2024-02-22",
+        "amount": 140.0,
+        "category": "utilities",
+        "net": -140.0
+      },
+      {
+        "date": "2024-02-28",
+        "amount": 200.0,
+        "category": "freelance",
+        "net": 200.0
+      },
+      {
+        "date": "2024-03-05",
+        "amount": 3000.0,
+        "category": "salary",
+        "net": 3000.0
+      },
+      {
+        "date": "2024-03-12",
+        "amount": 1200.0,
+        "category": "rent",
+        "net": -1200.0
+      },
+      {
+        "date": "2024-03-19",
+        "amount": 380.0,
+        "category": "groceries",
+        "net": -380.0
+      },
+      {
+        "date": "2024-03-24",
+        "amount": 130.0,
+        "category": "utilities",
+        "net": -130.0
+      },
+      {
+        "date": "2024-03-27",
+        "amount": 500.0,
+        "category": "freelance",
+        "net": 500.0
+      },
+      {
+        "date": "2024-04-05",
+        "amount": 3000.0,
+        "category": "salary",
+        "net": 3000.0
+      },
+      {
+        "date": "2024-04-12",
+        "amount": 1200.0,
+        "category": "rent",
+        "net": -1200.0
+      },
+      {
+        "date": "2024-04-17",
+        "amount": 360.0,
+        "category": "groceries",
+        "net": -360.0
+      },
+      {
+        "date": "2024-04-23",
+        "amount": 120.0,
+        "category": "utilities",
+        "net": -120.0
+      },
+      {
+        "date": "2024-04-29",
+        "amount": 800.0,
+        "category": "freelance",
+        "net": 800.0
+      },
+      {
+        "date": "2024-05-05",
+        "amount": 3000.0,
+        "category": "salary",
+        "net": 3000.0
+      },
+      {
+        "date": "2024-05-13",
+        "amount": 1200.0,
+        "category": "rent",
+        "net": -1200.0
+      },
+      {
+        "date": "2024-05-16",
+        "amount": 340.0,
+        "category": "groceries",
+        "net": -340.0
+      },
+      {
+        "date": "2024-05-21",
+        "amount": 110.0,
+        "category": "utilities",
+        "net": -110.0
+      },
+      {
+        "date": "2024-05-26",
+        "amount": 50.0,
+        "category": "mystery",
+        "net": -50.0
+      },
+      {
+        "date": "2024-05-30",
+        "amount": 1100.0,
+        "category": "freelance",
+        "net": 1100.0
+      },
+      {
+        "date": "2024-06-05",
+        "amount": 3000.0,
+        "category": "salary",
+        "net": 3000.0
+      },
+      {
+        "date": "2024-06-11",
+        "amount": 1200.0,
+        "category": "rent",
+        "net": -1200.0
+      },
+      {
+        "date": "2024-06-15",
+        "amount": 320.0,
+        "category": "groceries",
+        "net": -320.0
+      },
+      {
+        "date": "2024-06-20",
+        "amount": 100.0,
+        "category": "utilities",
+        "net": -100.0
+      },
+      {
+        "date": "2024-06-28",
+        "amount": 1400.0,
+        "category": "freelance",
+        "net": 1400.0
+      }
+    ]
+  },
+  "3": {
+    "data": {
+      "2024-01": 1200.0,
+      "2024-02": 1460.0,
+      "2024-03": 1790.0,
+      "2024-04": 2120.0,
+      "2024-05": 2400.0,
+      "2024-06": 2780.0
+    }
+  },
+  "4": {
+    "data": [
+      [
+        "2024-01",
+        1200.0
+      ],
+      [
+        "2024-02",
+        2660.0
+      ],
+      [
+        "2024-03",
+        4450.0
+      ],
+      [
+        "2024-04",
+        6570.0
+      ],
+      [
+        "2024-05",
+        8970.0
+      ],
+      [
+        "2024-06",
+        11750.0
+      ]
+    ]
+  },
+  "5": {
+    "data": {
+      "slope": 2108.571429,
+      "intercept": 661.904762,
+      "n_months": 6
+    }
+  },
+  "6": {
+    "data": {
+      "projection": [
+        [
+          6,
+          13313.333336
+        ],
+        [
+          7,
+          15421.904765
+        ],
+        [
+          8,
+          17530.476194
+        ]
+      ],
+      "slope": 2108.571429,
+      "n_months": 6
+    }
+  },
+  "7": {
+    "data": {
+      "projection": [
+        [
+          6,
+          14644.66667
+        ],
+        [
+          7,
+          16964.095241
+        ],
+        [
+          8,
+          19283.523813
+        ]
+      ],
+      "slope": 2108.571429,
+      "n_months": 6
+    }
+  },
+  "8": {
+    "data": {
+      "final_balance": 19283.523813,
+      "slope": 2108.571429,
+      "n_months": 6
+    }
+  }
+}

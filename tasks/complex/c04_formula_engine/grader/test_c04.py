@@ -200,19 +200,31 @@ def test_get_value_lazy_reflects_updates():
 # ---------------------------------------------------------------------------
 
 def test_direct_cycle_raises():
-    """A1 = =A2 and A2 = =A1 must raise ValueError."""
+    """A1 = =A2 and A2 = =A1 must raise ValueError.
+
+    Per the TASK contract the cycle error may surface either at set_cell time
+    (eager detection) OR on the first get_value that triggers the cycle (lazy
+    detection) -- "both are acceptable". We therefore accept a raise at either
+    point: if set_cell did not raise, the triggering get_value must.
+    """
     s = Sheet()
     s.set_cell("A1", "1")
     s.set_cell("A2", "=A1")
     with pytest.raises(ValueError):
-        s.set_cell("A1", "=A2")
+        s.set_cell("A1", "=A2")   # eager detection raises here ...
+        s.get_value("A1")          # ... or lazy detection raises here
 
 
 def test_self_reference_raises():
-    """A cell that directly references itself must raise ValueError."""
+    """A cell that directly references itself must raise ValueError.
+
+    Accept a raise at set_cell (eager) or on the first get_value (lazy), as the
+    TASK contract permits either.
+    """
     s = Sheet()
     with pytest.raises(ValueError):
         s.set_cell("A1", "=A1")
+        s.get_value("A1")
 
 
 # ---------------------------------------------------------------------------

@@ -37,8 +37,9 @@ RULES = [
 
 
 def classify(text: str):
+    low = text.lower()
     for marker, tag in RULES:
-        if marker in text:
+        if marker.lower() in low:   # case-insensitive: tolerate prompt-casing drift
             return tag
     return ("UNKNOWN", "UNKNOWN")
 

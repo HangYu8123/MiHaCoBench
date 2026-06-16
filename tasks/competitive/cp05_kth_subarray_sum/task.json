@@ -1,0 +1,14 @@
+{
+  "id": "cp05_kth_subarray_sum",
+  "category": "competitive",
+  "title": "k-th smallest contiguous-subarray sum (binary-search-on-answer + sliding window)",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["kth_subarray_sum"], "cli": false},
+  "grader": "grader/test_cp05.py",
+  "steps": null,
+  "complexity_target": "O(n log(totalSum))",
+  "created": "2026-06-16",
+  "source": "k-th smallest subarray sum via binary-search-on-answer with a monotone sliding-window count predicate (valid for non-negative arrays). Grader ground truth: independent O(n^2) brute force (enumerate-and-sort) on small inputs only.",
+  "oracle": "brute-force"
+}

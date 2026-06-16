@@ -1,0 +1,12 @@
+{
+  "id": "dbg05_group_tally",
+  "category": "debug",
+  "title": "Fix the mutable default-argument footgun",
+  "weight": 2,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["tally_by_group"], "cli": false},
+  "grader": "grader/test_dbg05.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

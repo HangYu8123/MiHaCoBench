@@ -1,0 +1,18 @@
+{
+  "id": "swe01_event_bus",
+  "category": "swe_bench",
+  "title": "In-Memory Publish/Subscribe Event Bus",
+  "weight": 6,
+  "packages": [],
+  "entrypoints": {
+    "module": "bus.py",
+    "callables": ["Event", "EventBus"],
+    "cli": false
+  },
+  "grader": "grader/test_swe01.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15",
+  "source": "Observer/pub-sub: handler not removed on unsubscribe (identity-comparison failure) — cf. RxJS issue #4230. Grader ground truth: independent reference event bus.",
+  "oracle": "independent-reference"
+}

@@ -1,0 +1,10 @@
+{
+  "docs": [
+    {"id": "d1", "text": "alpha beta alpha gamma alpha"},
+    {"id": "d2", "text": "beta beta gamma delta"},
+    {"id": "d3", "text": "alpha delta epsilon delta"},
+    {"id": "d4", "text": "gamma gamma gamma zeta"},
+    {"id": "d5", "text": "alpha beta gamma delta epsilon zeta"},
+    {"id": "d6", "text": "Beta, BETA! beta? alpha-alpha"}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "c08_pivot_report",
+  "category": "complex",
+  "title": "Pivot/Report Engine: Missing-Combination Fill and Tie-Break Spec Density",
+  "weight": 5,
+  "packages": ["pandas", "numpy"],
+  "entrypoints": {
+    "module": "report.py",
+    "callables": ["Report"],
+    "cli": false
+  },
+  "grader": "grader/test_c08.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-16"
+}

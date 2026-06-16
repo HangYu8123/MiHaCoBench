@@ -1,0 +1,16 @@
+{
+  "id": "swe05_ledger_balance",
+  "category": "swe_bench",
+  "title": "Double-entry ledger across 3 modules (sign bug crosses a module boundary)",
+  "weight": 6,
+  "packages": [],
+  "entrypoints": {
+    "module": "ledger.py",
+    "callables": ["Ledger"],
+    "cli": false
+  },
+  "grader": "grader/test_swe05.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-16"
+}

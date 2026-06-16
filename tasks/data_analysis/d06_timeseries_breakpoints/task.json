@@ -1,0 +1,12 @@
+{
+  "id": "d06_timeseries_breakpoints",
+  "category": "data_analysis",
+  "title": "Time-Series Changepoint Detection",
+  "weight": 3,
+  "packages": ["numpy", "pandas", "scipy", "matplotlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["analyze"], "cli": true},
+  "grader": "grader/test_d06.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

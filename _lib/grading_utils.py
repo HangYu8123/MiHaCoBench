@@ -3,7 +3,7 @@
 Every task grader imports from this module so that solution resolution, isolation,
 import-by-path, timeouts, complexity estimation, plot validation, artifact
 provenance, and the advisory code-quality report are implemented **once** and
-behave identically across all 35 tasks.
+behave identically across all 72 tasks.
 
 Design decisions (grounded in the Step-3 challenge + research):
 
@@ -40,6 +40,7 @@ import sys
 import threading
 import time
 import tracemalloc
+import warnings
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
@@ -56,6 +57,10 @@ TIME_BUDGETS = {
     "algorithmic": 30,
     "long_horizon": 15,  # per step
     "ml": 120,
+    "debug": 30,
+    "swe_bench": 60,      # multi-file fault-localization mini-repos (SWE-bench style)
+    "compositional": 60,  # multi-library composition (BigCodeBench style)
+    "competitive": 30,    # contest-level; tight gate so wrong complexity times out (LiveCodeBench/APPS style)
 }
 
 
@@ -171,40 +176,124 @@ class TimeoutExceeded(Exception):
     """Raised when a guarded block exceeds its wall-clock budget."""
 
 
+def _async_raise(target_tid: int, exc_type: type) -> bool:
+    """Inject ``exc_type`` into the thread whose id is ``target_tid`` (CPython).
+
+    Returns True iff exactly one thread state was modified. Used by the
+    non-SIGALRM fallback of :func:`time_limit`. A CPython *asynchronous*
+    exception is delivered only between bytecode instructions, so it interrupts
+    pure-Python runaway loops (the wrong-Big-O case) but cannot pre-empt a single
+    long call that sits inside a C extension.
+    """
+    import ctypes
+    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+        ctypes.c_ulong(target_tid), ctypes.py_object(exc_type))
+    if res > 1:  # pragma: no cover - defensive: never leave >1 thread injected
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(target_tid), None)
+    return res == 1
+
+
+def _sigalrm_gate_available() -> bool:
+    """True when :func:`time_limit` can use SIGALRM (POSIX, main thread)."""
+    return hasattr(signal, "setitimer") and threading.current_thread() is threading.main_thread()
+
+
+def complexity_gate_mechanism() -> str:
+    """How :func:`time_limit` will enforce a budget on this platform *right now*.
+
+    * ``"sigalrm"`` — hard wall-clock gate (POSIX main thread); can interrupt
+      anything, including time spent in C code.
+    * ``"thread-watchdog"`` — portable fallback; interrupts pure-Python runaway
+      loops only (cannot pre-empt a long call inside a C extension).
+    * ``"none"`` — no enforcement available (a wrong-complexity solution is not
+      rejected); only on an interpreter without ``ctypes`` and without SIGALRM.
+
+    Surfaced by ``run_benchmark.py --preflight`` so an unsound platform is loud,
+    not silent.
+    """
+    if _sigalrm_gate_available():
+        return "sigalrm"
+    try:
+        import ctypes  # noqa: F401
+    except Exception:  # pragma: no cover - interpreter without ctypes
+        return "none"
+    return "thread-watchdog"
+
+
 @contextmanager
 def time_limit(seconds: float):
-    """SIGALRM-based wall-clock guard for in-process calls (POSIX, main thread).
+    """Wall-clock guard for in-process calls — the *hard* complexity gate.
 
-    This is the *hard* complexity gate: an asymptotically-wrong solution blows
-    the budget on a large adversarial input and is rejected, while constant
-    factors are irrelevant because the input is large enough to dominate them.
+    An asymptotically-wrong solution blows the budget on a large adversarial
+    input and is rejected, while constant factors are irrelevant because the
+    input is large enough to dominate them.
+
+    On a POSIX main thread this uses ``SIGALRM`` and can interrupt anything,
+    including time spent in C code. Where SIGALRM is unavailable — Windows, or
+    any non-main-thread caller — it falls back to a watchdog thread that injects
+    :class:`TimeoutExceeded` into the calling thread (see :func:`_async_raise`):
+    that interrupts pure-Python runaway loops (the wrong-Big-O case) but cannot
+    pre-empt a single long call inside a C extension, and if even that is
+    unavailable it warns loudly rather than silently not enforcing. Prefer a
+    POSIX main-thread run for the strongest gate; see
+    :func:`complexity_gate_mechanism`.
     """
     if seconds <= 0:
         yield
         return
 
-    # SIGALRM is only usable on POSIX and only from the main thread of the main
-    # interpreter; anywhere else, degrade to no enforcement rather than crashing.
-    if not hasattr(signal, "setitimer") or threading.current_thread() is not threading.main_thread():
+    if _sigalrm_gate_available():
+        def _handler(signum, frame):  # noqa: ARG001
+            raise TimeoutExceeded(f"exceeded {seconds:g}s time budget")
+
+        prev_timer = signal.getitimer(signal.ITIMER_REAL)  # (value, interval); value>0 => outer timer armed
+        old_handler = signal.signal(signal.SIGALRM, _handler)
+        signal.setitimer(signal.ITIMER_REAL, seconds)
+        try:
+            yield
+        finally:
+            signal.signal(signal.SIGALRM, old_handler)
+            # Restore any outer timer instead of blindly zeroing it, so a nested
+            # time_limit cannot silently disable an enclosing one.
+            if prev_timer[0] > 0:
+                signal.setitimer(signal.ITIMER_REAL, prev_timer[0], prev_timer[1])
+            else:
+                signal.setitimer(signal.ITIMER_REAL, 0)
+        return
+
+    # --- Portable fallback: no SIGALRM (Windows or non-main-thread caller) --- #
+    try:
+        import ctypes  # noqa: F401
+    except Exception:  # pragma: no cover - exotic interpreter without ctypes
+        warnings.warn(
+            "time_limit: neither SIGALRM nor ctypes is available — the complexity "
+            "gate is NOT enforced here; a wrong-complexity solution will not time out.",
+            RuntimeWarning, stacklevel=2)
         yield
         return
 
-    def _handler(signum, frame):  # noqa: ARG001
-        raise TimeoutExceeded(f"exceeded {seconds:g}s time budget")
+    target_tid = threading.get_ident()
+    fired = threading.Event()
 
-    prev_timer = signal.getitimer(signal.ITIMER_REAL)  # (value, interval); value>0 => outer timer armed
-    old_handler = signal.signal(signal.SIGALRM, _handler)
-    signal.setitimer(signal.ITIMER_REAL, seconds)
+    def _interrupt():
+        fired.set()
+        _async_raise(target_tid, TimeoutExceeded)
+
+    timer = threading.Timer(seconds, _interrupt)
+    timer.daemon = True
+    timer.start()
     try:
         yield
     finally:
-        signal.signal(signal.SIGALRM, old_handler)
-        # Restore any outer timer instead of blindly zeroing it, so a nested
-        # time_limit cannot silently disable an enclosing one.
-        if prev_timer[0] > 0:
-            signal.setitimer(signal.ITIMER_REAL, prev_timer[0], prev_timer[1])
-        else:
-            signal.setitimer(signal.ITIMER_REAL, 0)
+        timer.cancel()
+        # If the watchdog fired right at the boundary, clear any async exception
+        # still pending in this thread so it cannot leak past the guarded block.
+        if fired.is_set():
+            try:
+                import ctypes
+                ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(target_tid), None)
+            except Exception:  # pragma: no cover
+                pass
 
 
 def run_within(seconds: float, fn: Callable, *args, **kwargs):

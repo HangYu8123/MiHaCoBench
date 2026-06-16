@@ -1,0 +1,16 @@
+{
+  "id": "swe07_router_dispatch",
+  "category": "swe_bench",
+  "title": "Tiny path router with typed params across 3 modules",
+  "weight": 6,
+  "packages": [],
+  "entrypoints": {
+    "module": "app.py",
+    "callables": ["App"],
+    "cli": false
+  },
+  "grader": "grader/test_swe07.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-16"
+}

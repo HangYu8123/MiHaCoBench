@@ -1,0 +1,16 @@
+{
+  "id": "c07_migration_runner",
+  "category": "complex",
+  "title": "SQLAlchemy schema-migration runner",
+  "weight": 5,
+  "packages": ["SQLAlchemy"],
+  "entrypoints": {
+    "module": "migrator.py",
+    "callables": ["Migrator", "Migration"],
+    "cli": false
+  },
+  "grader": "grader/test_c07.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-16"
+}

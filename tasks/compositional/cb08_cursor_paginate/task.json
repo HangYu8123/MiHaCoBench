@@ -1,0 +1,12 @@
+{
+  "id": "cb08_cursor_paginate",
+  "category": "compositional",
+  "title": "Stable Cursor Pagination over a Sorted DataFrame",
+  "weight": 4,
+  "packages": ["pandas"],
+  "entrypoints": {"module": "solution.py", "callables": ["paginate"], "cli": false},
+  "grader": "grader/test_cb08.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-16"
+}

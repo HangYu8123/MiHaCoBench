@@ -64,9 +64,16 @@ class JobQueue:
     def fail(self, job_id: int) -> None:
         """Record a failure attempt for ``job_id``.
 
-        If ``attempts < max_retries``: increment ``attempts``, set status back to
-        ``"pending"`` (the job will be retried).
-        If ``attempts >= max_retries``: set status to ``"failed"`` (permanent).
+        Counting rule (increment **first**, then compare):
+          1. Increment ``attempts`` by 1 to count this failure.
+          2. If the **new** ``attempts`` value is ``< max_retries``: set status
+             back to ``"pending"`` (the job will be retried).
+          3. If the **new** ``attempts`` value is ``>= max_retries``: set status
+             to ``"failed"`` (permanent).
+
+        Equivalently, ``max_retries`` is the maximum *total* number of attempts.
+        Example (``max_retries=3``): the 1st and 2nd ``fail()`` return the job to
+        ``"pending"``; the 3rd ``fail()`` marks it ``"failed"``.
         """
         ...
 

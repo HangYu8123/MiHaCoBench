@@ -1,0 +1,9 @@
+{
+  "rolling_mean_last": 24.901391820963088,
+  "breakpoint_index": 100,
+  "mean_before": 9.924595582774213,
+  "mean_after": 24.98405224326859,
+  "t_stat": -80.31261695039414,
+  "p_value": 1.397376506036494e-147,
+  "reject_null": true
+}

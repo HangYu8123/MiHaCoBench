@@ -1,0 +1,218 @@
+{
+  "1": {
+    "data": {
+      "tokens": {
+        "d1": [
+          "alpha",
+          "beta",
+          "alpha",
+          "gamma",
+          "alpha"
+        ],
+        "d2": [
+          "beta",
+          "beta",
+          "gamma",
+          "delta"
+        ],
+        "d3": [
+          "alpha",
+          "delta",
+          "epsilon",
+          "delta"
+        ],
+        "d4": [
+          "gamma",
+          "gamma",
+          "gamma",
+          "zeta"
+        ],
+        "d5": [
+          "alpha",
+          "beta",
+          "gamma",
+          "delta",
+          "epsilon",
+          "zeta"
+        ],
+        "d6": [
+          "beta",
+          "beta",
+          "beta",
+          "alpha",
+          "alpha"
+        ]
+      }
+    }
+  },
+  "2": {
+    "data": {
+      "counts": {
+        "d1": {
+          "alpha": 3,
+          "beta": 1,
+          "gamma": 1
+        },
+        "d2": {
+          "beta": 2,
+          "gamma": 1,
+          "delta": 1
+        },
+        "d3": {
+          "alpha": 1,
+          "delta": 2,
+          "epsilon": 1
+        },
+        "d4": {
+          "gamma": 3,
+          "zeta": 1
+        },
+        "d5": {
+          "alpha": 1,
+          "beta": 1,
+          "gamma": 1,
+          "delta": 1,
+          "epsilon": 1,
+          "zeta": 1
+        },
+        "d6": {
+          "beta": 3,
+          "alpha": 2
+        }
+      }
+    }
+  },
+  "3": {
+    "data": {
+      "df": {
+        "alpha": 4,
+        "beta": 4,
+        "gamma": 4,
+        "delta": 3,
+        "epsilon": 2,
+        "zeta": 2
+      },
+      "counts": {
+        "d1": {
+          "alpha": 3,
+          "beta": 1,
+          "gamma": 1
+        },
+        "d2": {
+          "beta": 2,
+          "gamma": 1,
+          "delta": 1
+        },
+        "d3": {
+          "alpha": 1,
+          "delta": 2,
+          "epsilon": 1
+        },
+        "d4": {
+          "gamma": 3,
+          "zeta": 1
+        },
+        "d5": {
+          "alpha": 1,
+          "beta": 1,
+          "gamma": 1,
+          "delta": 1,
+          "epsilon": 1,
+          "zeta": 1
+        },
+        "d6": {
+          "beta": 3,
+          "alpha": 2
+        }
+      },
+      "n_docs": 6
+    }
+  },
+  "4": {
+    "data": {
+      "tfidf": {
+        "d1": {
+          "alpha": 0.243279,
+          "beta": 0.081093,
+          "gamma": 0.081093
+        },
+        "d2": {
+          "beta": 0.202733,
+          "gamma": 0.101366,
+          "delta": 0.173287
+        },
+        "d3": {
+          "alpha": 0.101366,
+          "delta": 0.346574,
+          "epsilon": 0.274653
+        },
+        "d4": {
+          "gamma": 0.304099,
+          "zeta": 0.274653
+        },
+        "d5": {
+          "alpha": 0.067578,
+          "beta": 0.067578,
+          "gamma": 0.067578,
+          "delta": 0.115525,
+          "epsilon": 0.183102,
+          "zeta": 0.183102
+        },
+        "d6": {
+          "beta": 0.243279,
+          "alpha": 0.162186
+        }
+      },
+      "idf": {
+        "alpha": 0.405465,
+        "beta": 0.405465,
+        "gamma": 0.405465,
+        "delta": 0.693147,
+        "epsilon": 1.098612,
+        "zeta": 1.098612
+      }
+    }
+  },
+  "5": {
+    "data": [
+      [
+        "d6",
+        0.980581
+      ],
+      [
+        "d1",
+        0.852803
+      ],
+      [
+        "d2",
+        0.502442
+      ],
+      [
+        "d5",
+        0.31155
+      ],
+      [
+        "d3",
+        0.15799
+      ],
+      [
+        "d4",
+        0.0
+      ]
+    ]
+  },
+  "6": {
+    "data": {
+      "top": [
+        "d6",
+        "d1",
+        "d2"
+      ],
+      "scores": [
+        0.980581,
+        0.852803,
+        0.502442
+      ]
+    }
+  }
+}

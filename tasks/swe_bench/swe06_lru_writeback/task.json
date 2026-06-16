@@ -1,0 +1,16 @@
+{
+  "id": "swe06_lru_writeback",
+  "category": "swe_bench",
+  "title": "Write-through LRU cache over a backing store across 3 modules",
+  "weight": 6,
+  "packages": [],
+  "entrypoints": {
+    "module": "kv.py",
+    "callables": ["KV"],
+    "cli": false
+  },
+  "grader": "grader/test_swe06.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-16"
+}

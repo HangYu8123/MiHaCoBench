@@ -1,0 +1,14 @@
+{
+  "id": "cp04_tree_distance",
+  "category": "competitive",
+  "title": "Sum of weighted distances in a tree (rerooting DP)",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["sum_of_distances"], "cli": false},
+  "grader": "grader/test_cp04.py",
+  "steps": null,
+  "complexity_target": "O(n)",
+  "created": "2026-06-15",
+  "source": "Sum of distances in a tree (rerooting DP) — cf. LeetCode 834; Codeforces rerooting tutorials. Grader ground truth: independent all-pairs BFS/Dijkstra.",
+  "oracle": "brute-force"
+}

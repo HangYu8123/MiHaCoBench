@@ -1,0 +1,14 @@
+{
+  "id": "cp01_range_query",
+  "category": "competitive",
+  "title": "Range update and range sum queries (O((n+q) log n))",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["process_queries"], "cli": false},
+  "grader": "grader/test_cp01.py",
+  "steps": null,
+  "complexity_target": "O(n log n)",
+  "created": "2026-06-15",
+  "source": "Range-update/range-sum Fenwick (BIT) two-tree trick — cf. cp-algorithms.com Fenwick Tree §3 Range Update and Range Query. Grader ground truth: independent brute-force array (not a library).",
+  "oracle": "brute-force"
+}

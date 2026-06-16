@@ -4,14 +4,16 @@
 pipeline of an AI coding system — not just raw model capability.**
 
 ![Python](https://img.shields.io/badge/python-3.11.x-blue)
-![Tasks](https://img.shields.io/badge/tasks-35-success)
-![Categories](https://img.shields.io/badge/categories-6-informational)
+![Tasks](https://img.shields.io/badge/tasks-72-success)
+![Categories](https://img.shields.io/badge/categories-10-informational)
 ![Self-check](https://img.shields.io/badge/self--check-passing-brightgreen)
 
 > The source code and [`RUBRIC.md`](RUBRIC.md) brand the suite internally as
-> **HarnessFlow PyBench** — it is the same project as MiHaCoBench. Tasks were
-> authored on **2026-06-15** against a pinned, offline **Python 3.11.5** environment
-> to minimise training-data contamination and guarantee reproducibility.
+> **HarnessFlow PyBench** — it is the same project as MiHaCoBench. The original
+> tasks were authored on **2026-06-15** against a pinned, offline **Python 3.11.5**
+> environment to minimise training-data contamination and guarantee reproducibility;
+> **14 additional hard, harness-discriminating tasks were added on 2026-06-16**
+> (see _"Distinguishing harnesses"_ below).
 
 ---
 
@@ -32,31 +34,63 @@ DS-1000, LiveCodeBench, BigO(Bench),** and **TheAgentCompany**.
 
 ## What it measures
 
-**35 tasks across six categories**, each stressing a different ability of a coding
+**72 tasks across ten categories**, each stressing a different ability of a coding
 harness. Tasks are **weighted** when aggregating so a harness cannot inflate its
 score by acing only the easy ones.
 
 | Category | Count | What it probes | Per-task weight |
 |---|---|---|---|
-| `easy` | 5 | single-file (~100 LOC), stdlib/≤4 packages — baseline competence | 1 |
-| `complex` | 5 | multi-file / multi-class systems (gold ≈400–800 LOC) using a large package (SQLAlchemy, jinja2, networkx, pandas) | 5 |
-| `data_analysis` | 5 | load → analyse → **correct statistics** → **visualise** | 3 |
-| `algorithmic` | 5 | time / space **complexity** + readability (1 easy, 1 medium, 3 hard) | 2 / 4 / 8 |
-| `long_horizon` | 10 | dependency chains of 2, 4, …, 20 steps — a wrong early step **cascades** | steps / 2 |
-| `ml` | 5 | scikit-learn tasks — held-out, leakage-resistant | 3 |
+| `easy` | 6 | single-file (~100 LOC), stdlib/≤4 packages — baseline competence | 1 |
+| `complex` | 8 | multi-file / multi-class systems (gold ≈400–800 LOC) using a large package (SQLAlchemy, jinja2, networkx, pandas) | 5 |
+| `data_analysis` | 8 | load → analyse → **correct statistics** → **visualise** | 3 |
+| `algorithmic` | 7 | time / space **complexity** + readability (1 easy, 1 medium, 5 hard) | 2 / 4 / 8 |
+| `long_horizon` | 12 | dependency chains of 2–20 steps — a wrong early step **cascades** | steps / 2 |
+| `ml` | 6 | scikit-learn tasks — held-out, leakage-resistant | 3 |
+| `debug` | 6 | fix a planted bug in given code (SWE-bench FAIL_TO_PASS / PASS_TO_PASS) — fault localization without regressions | 2 |
+| `swe_bench` | 8 | **multi-file** mini-repo fault localization — fix a bug whose symptom crosses a module boundary, FAIL_TO_PASS + PASS_TO_PASS, grader loads ≥2 modules (SWE-bench style) | 6 |
+| `compositional` | 7 | compose ≥2 (often ≥3) libraries under a precise contract with full **exception-path** coverage + surface-form checks (BigCodeBench style) | 4 |
+| `competitive` | 4 | contest-level algorithms with a **hard complexity gate** + adversarial inputs; novel/twisted to resist contamination (LiveCodeBench / APPS style) | 8 |
 
 Example task ids: `easy/e01_csv_pulse`, `complex/c01_job_queue_sqla`,
 `data_analysis/d05_experiment_anova`, `algorithmic/a04_edit_distance`,
-`long_horizon/lh10_mega_etl`, `ml/m03_clustering`.
+`long_horizon/lh10_mega_etl`, `ml/m03_clustering`, `debug/dbg02_resolve_order`,
+`swe_bench/swe02_mini_orm`, `compositional/cb02_workflow_dag`,
+`competitive/cp04_tree_distance`. The 2026-06-16 hard expansion added, among
+others, `swe_bench/swe08_money_rounding` (per-line tax rounding bug crossing a
+module boundary), `complex/c07_migration_runner` (SQLAlchemy migration ordering),
+`data_analysis/d07_paired_design` (paired-vs-unpaired t-test trap), and
+`long_horizon/lh12_budget_forecast` (8-step forecast cascade).
 
 See [`RUBRIC.md`](RUBRIC.md) for the authoritative, per-category grading methodology.
+
+### Distinguishing harnesses (the 2026-06-16 hard expansion)
+
+The original suite is **well-specified enough that a strong model often solves a
+task in one shot** — so it under-discriminates between harnesses. The 14 tasks
+added on 2026-06-16 are deliberately built around the failure modes that research
+shows reliably separate harnesses and break single-shot agents:
+
+* **multi-file fault localization** (`swe05`–`swe08`) — the bug's *symptom* and
+  *root cause* live in different modules (SWE-bench style);
+* **spec-density traps** (`c07`, `c08`, `e06`) — constraint-dense contracts with a
+  single hidden ambiguity (integer-vs-string version ordering, NaN-vs-0 fill,
+  numeric pre-release precedence) that a hasty pass silently drops;
+* **multi-library composition + exception paths** (`cb05`–`cb07`) — compose ≥3
+  libraries with full, typed exception-path coverage (BigCodeBench style);
+* **statistical surface-form twists** (`d07`, `d08`) — the *memorised* answer is
+  wrong (unpaired vs paired t-test; uncorrected vs Holm-corrected pairwise tests);
+* **longer state cascades** (`lh11` 6-step, `lh12` 8-step) — a wrong early step
+  poisons everything downstream.
+
+Each still ships a working **gold** reference (so it is solvable) and a
+deliberately-**broken** one (so the grader is provably discriminating).
 
 ## Design pillars
 
 1. **Grader integrity (SWE-bench style).** Every grader must **pass** on a hidden
    *gold* reference and **fail** on a deliberately-*broken* reference. A task with no
    broken variant, or whose grader passes the broken one, is reported INVALID.
-   `run_benchmark.py` (default mode) verifies this for all 35 tasks — it is the
+   `run_benchmark.py` (default mode) verifies this for all 72 tasks — it is the
    benchmark's own correctness test.
 2. **Isolation.** Gold and broken references live under `_solutions/`, a tree
    entirely separate from `tasks/`. A real evaluation gives the agent only
@@ -121,7 +155,8 @@ networkx, pyyaml, joblib, and pytest.
 
 ## Usage
 
-The runner has **three modes**. Run everything from the repository root.
+The runner has three **scoring/integrity** modes plus two **harness-setup**
+helpers. Run everything from the repository root.
 
 ```bash
 # 1. Preflight — import every required package; report what is missing.
@@ -138,11 +173,26 @@ python run_benchmark.py --self-check
 python run_benchmark.py --candidate-root /path/to/candidate_solutions
 ```
 
-Scope any mode to one category or to tasks whose id contains a substring:
+Two helpers prepare and inspect a run **without** needing the package environment
+installed (they only read task manifests):
+
+```bash
+# 4. Scaffold an empty, isolated candidate workspace — one folder per task, each
+#    holding only that task's TASK.md (+ its committed data/ inputs, when any).
+#    DIR must live OUTSIDE this repo (see "Running your own harness" below).
+python run_benchmark.py --scaffold-candidate /path/to/mihaco-candidate
+
+# 5. List every task (category, id, weight, required solution module, TASK.md path)
+#    — handy for driving a harness from a script.
+python run_benchmark.py --list-tasks
+```
+
+Scope **any** mode to one category or to tasks whose id contains a substring:
 
 ```bash
 python run_benchmark.py --category algorithmic
 python run_benchmark.py --task edit_distance
+python run_benchmark.py --scaffold-candidate ../cand --category complex   # filters apply here too
 ```
 
 Each task is graded in an **isolated pytest subprocess** (JUnit-XML parsed back for
@@ -162,19 +212,128 @@ candidate_solutions/
 **Example output** (trimmed):
 
 ```
-SELF-CHECK — validating 35 graders (must PASS on gold, FAIL on broken)
+SELF-CHECK — validating 72 graders (must PASS on gold, FAIL on broken)
 
-  [PASS] easy          e01_csv_pulse            gold 8/8   broken 5/8
+  [PASS] easy          e01_csv_pulse            gold 11/11 broken 9/11
   ...
-SELF-CHECK: 35/35 graders valid.
+SELF-CHECK: 72/72 graders valid.
 ```
 
 ```
 EVALUATE — candidate root: /path/to/candidate_solutions
   ...
-  TOTAL strict 35/35   weighted-partial 1.000
+  TOTAL strict 72/72   weighted-partial 1.000
   Wrote /…/results.json
 ```
+
+## Running your own harness against the suite
+
+MiHaCoBench scores **whatever produced the solutions** — Claude Code, GitHub
+Copilot, OpenAI Codex, your own agent, or a human — so the workflow is the same
+for every harness. Only the "drive the agent" step differs per tool.
+
+```
+┌─ 1. install ──┐  ┌─ 2. scaffold ─────────┐  ┌─ 3. drive your harness ──┐  ┌─ 4. score ───┐
+│ pip install   │→ │ one TASK.md per folder │→ │ agent reads TASK.md,      │→ │ --candidate- │
+│ -r requirements│  │ OUTSIDE this repo      │  │ writes the solution there │  │ root <dir>   │
+└───────────────┘  └────────────────────────┘  └───────────────────────────┘  └──────────────┘
+```
+
+```bash
+# 1. Install deps (Python 3.11.x) and confirm the environment:
+pip install -r requirements.txt && python run_benchmark.py --preflight
+
+# 2. Lay out an isolated workspace OUTSIDE the repo (one folder per task):
+python run_benchmark.py --scaffold-candidate ../mihaco-candidate
+
+# 3. Drive your harness over ../mihaco-candidate/<category>/<task_id>/  (see below).
+
+# 4. Score the SAME directory you scaffolded:
+python run_benchmark.py --candidate-root ../mihaco-candidate
+```
+
+**Spec-only isolation — the one rule that makes results comparable.** The agent
+under test may see **only** the task's `TASK.md` (and the `data/` inputs scaffolded
+beside it). It must **not** see graders, the gold/broken references under
+`_solutions/`, or other tasks — any of those leaks the answer. That is why
+`--scaffold-candidate` **refuses any target inside this repository** and copies
+*only* `TASK.md` + `data/` (never `expected/`, `grader/`, or `task.json`). Scaffold
+to an external directory and point your harness at that directory, not at this repo.
+
+**What file to write.** `--list-tasks` prints the required solution module for every
+task. Most tasks expect `solution.py`; the `complex` tasks expect a named facade
+module (`c01 → queue_api.py`, `c02 → app_factory.py`, `c03 → graph_engine.py`,
+`c04 → sheet.py`, `c05 → pipeline.py`); `long_horizon` tasks expect a `solution.py`
+exposing the `--step K --in <prev> --out <out>` CLI from their `TASK.md`. The grader
+imports the solution **by file path** and reads `data/`/`expected/` from this repo, so
+leftover `TASK.md`/`data/` files in the candidate folder never affect scoring.
+
+> This repo ships root `CLAUDE.md`, `AGENTS.md`, and `.github/copilot-instructions.md`.
+> Those configure the **maintainer's** HarnessFlow dev workflow — they are *not* how
+> you run the benchmark. Scaffolding to an external directory keeps them out of your
+> harness's way automatically.
+
+### Claude Code (Anthropic)
+
+**CLI, scripted over all tasks** — run headless, scoped to one folder at a time so
+each invocation sees only its own `TASK.md`:
+
+```bash
+ROOT=../mihaco-candidate
+find "$ROOT" -name TASK.md -print0 | while IFS= read -r -d '' t; do
+  ( cd "$(dirname "$t")" \
+    && claude -p "Read TASK.md and implement the solution it specifies. \
+Write the solution file(s) into this directory. Do not read files outside it." \
+       --permission-mode acceptEdits )
+done
+python run_benchmark.py --candidate-root "$ROOT"
+```
+
+`-p` runs non-interactively; `--permission-mode acceptEdits` auto-approves writes in
+the working directory. Add `--bare` for a config-isolated run (skips your global
+`CLAUDE.md`/MCP/hooks). **IDE / interactive:** open a task folder (or the whole
+scaffold) as the workspace in the VS Code / JetBrains extension, or run `claude` from
+inside a task folder, and prompt "implement TASK.md here."
+
+### GitHub Copilot
+
+**VS Code Agent mode** (the most reliable Copilot path): `File ▸ Open Folder` on a
+task folder (or the whole scaffold), open Copilot Chat, switch the dropdown to
+**Agent**, and prompt: *"Read TASK.md in this folder and implement the solution;
+write the file(s) here."* A `.github/copilot-instructions.md` placed in the workspace
+root is auto-injected into every request, so you can hard-code "always start by
+reading TASK.md." **Copilot CLI** (the newer agentic `copilot` CLI) can do the same
+from a task folder (`copilot -p "implement TASK.md"`), but unattended looping and the
+exact auto-approve flag are still stabilizing — verify with `copilot --help` before
+scripting it.
+
+### OpenAI Codex
+
+**CLI, scripted over all tasks** via `codex exec` (non-interactive):
+
+```bash
+ROOT=../mihaco-candidate
+find "$ROOT" -name TASK.md -print0 | while IFS= read -r -d '' t; do
+  ( cd "$(dirname "$t")" \
+    && codex exec --sandbox workspace-write --ask-for-approval never \
+       "Read TASK.md and implement the solution it specifies. Write the file(s) here." )
+done
+python run_benchmark.py --candidate-root "$ROOT"
+```
+
+`--sandbox workspace-write` confines writes to the task folder + `/tmp`; `--ask-for-
+approval never` runs unattended. Codex auto-discovers `AGENTS.md` up the tree, so a
+one-line `AGENTS.md` ("always read TASK.md first") in the scaffold root works across
+runs. (The legacy `--full-auto` flag is deprecated — prefer the two flags above; the
+Codex desktop app is the current GUI surface.)
+
+### Any other harness (and fully manual)
+
+The portable contract is just: **`cd` into a task folder, read `TASK.md`, write the
+solution file(s) there, read nothing outside the folder.** Drop a one-line
+`AGENTS.md` (or `CLAUDE.md`) saying "read TASK.md and implement it" into the scaffold
+root and most agentic CLIs will auto-discover it. For a manual baseline, open each
+`TASK.md`, write the solution by hand into the same folder, then run `--candidate-root`.
 
 ## How code under test is resolved (the env-var contract)
 
@@ -200,7 +359,7 @@ For each task the runner records:
   so easy tasks cannot dominate the total.
 
 `--candidate-root` writes [`results.json`](results.json) with each task's
-`passed/total/partial/strict`, per-category totals, `strict_total` (e.g. `35/35`),
+`passed/total/partial/strict`, per-category totals, `strict_total` (e.g. `72/72`),
 and the overall `weighted_partial`.
 
 Readability (`grading_utils.code_quality_report`) and the empirical Big-O fit
@@ -208,7 +367,7 @@ Readability (`grading_utils.code_quality_report`) and the empirical Big-O fit
 gating. Complexity is *enforced by feasibility*: a wrong-complexity solution
 physically times out on a large adversarial input.
 
-> **Note on the committed `results.json`.** Its scores (35/35 strict,
+> **Note on the committed `results.json`.** Its scores (72/72 strict,
 > `weighted_partial = 1.0`) come from pointing `--candidate-root` at the **gold
 > `_solutions/` tree itself** — a sanity baseline confirming the graders accept the
 > reference solutions. It is **not** an independent agent result, and its
@@ -242,5 +401,6 @@ physically times out on a large adversarial input.
 
 ## License
 
-No `LICENSE` file is currently included in this repository. Until one is added,
-treat the contents as all-rights-reserved and contact the maintainer before reuse.
+Released under the [MIT License](LICENSE) — © 2026 Hang Yu. You may use, modify,
+and redistribute the suite (including the tasks, graders, and reference solutions)
+with attribution; see [`LICENSE`](LICENSE) for the full text.

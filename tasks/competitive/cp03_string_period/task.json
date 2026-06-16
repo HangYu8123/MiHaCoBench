@@ -1,0 +1,14 @@
+{
+  "id": "cp03_string_period",
+  "category": "competitive",
+  "title": "KMP string search with wildcard '?' character",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["count_pattern"], "cli": false},
+  "grader": "grader/test_cp03.py",
+  "steps": null,
+  "complexity_target": "O(n+m)",
+  "created": "2026-06-15",
+  "source": "Wildcard pattern matching — cf. LeetCode 44 (Wildcard Matching); '?'-only linear matching: Wikipedia 'Matching wildcards', cp-algorithms Z-function. Grader ground truth: Python stdlib `re` (independent external oracle).",
+  "oracle": "python-re"
+}

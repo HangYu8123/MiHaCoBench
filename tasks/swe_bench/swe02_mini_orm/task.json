@@ -1,0 +1,18 @@
+{
+  "id": "swe02_mini_orm",
+  "category": "swe_bench",
+  "title": "Tiny in-memory query engine across 3 modules",
+  "weight": 6,
+  "packages": [],
+  "entrypoints": {
+    "module": "db.py",
+    "callables": ["Database", "Query"],
+    "cli": false
+  },
+  "grader": "grader/test_swe02.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15",
+  "source": "Query builder AND-composition: multiple WHERE conditions composed incorrectly — cf. SQLAlchemy issue #5723. Grader ground truth: independent naive filter.",
+  "oracle": "independent-reference: naive Python filter (list comprehension + sorted + slice)"
+}

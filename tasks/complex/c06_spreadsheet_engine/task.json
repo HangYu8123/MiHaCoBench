@@ -1,0 +1,16 @@
+{
+  "id": "c06_spreadsheet_engine",
+  "category": "complex",
+  "title": "Mini Spreadsheet Engine with Dependency DAG",
+  "weight": 5,
+  "packages": ["networkx"],
+  "entrypoints": {
+    "module": "sheet.py",
+    "callables": ["Sheet"],
+    "cli": false
+  },
+  "grader": "grader/test_c06.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

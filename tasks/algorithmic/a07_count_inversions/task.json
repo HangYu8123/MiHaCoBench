@@ -1,0 +1,12 @@
+{
+  "id": "a07_count_inversions",
+  "category": "algorithmic",
+  "title": "Inversion count via merge-sort or BIT",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["count_inversions"], "cli": false},
+  "grader": "grader/test_a07.py",
+  "steps": null,
+  "complexity_target": "O(n log n)",
+  "created": "2026-06-15"
+}

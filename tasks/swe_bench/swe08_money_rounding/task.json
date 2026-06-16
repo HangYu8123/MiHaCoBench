@@ -1,0 +1,16 @@
+{
+  "id": "swe08_money_rounding",
+  "category": "swe_bench",
+  "title": "Invoice totals with per-line tax rounding across 3 modules",
+  "weight": 6,
+  "packages": [],
+  "entrypoints": {
+    "module": "invoice.py",
+    "callables": ["Invoice", "format_cents"],
+    "cli": false
+  },
+  "grader": "grader/test_swe08.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-16"
+}

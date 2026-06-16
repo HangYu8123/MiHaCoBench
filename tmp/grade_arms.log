@@ -1,0 +1,104 @@
+
+========== [naive] strict=49/72 weighted=0.6487 apparatus_issues=23 -> eval_naive_full.json ==========
+lse             11/11  partial=1.00 strict=1 (w=1)
+  easy          e02_ini_parser            18/18  partial=1.00 strict=1 (w=1)
+  easy          e03_freq_lru              12/12  partial=1.00 strict=1 (w=1)
+  easy          e04_roman_ledger          22/22  partial=1.00 strict=1 (w=1)
+  easy          e05_tiny_template         29/29  partial=1.00 strict=1 (w=1)
+  easy          e06_semver_order          14/14  partial=1.00 strict=1 (w=1)
+  long_horizon  lh01_two_step_tally        4/4   partial=1.00 strict=1 (w=1)
+  long_horizon  lh02_text_refine           6/6   partial=1.00 strict=1 (w=2)
+  long_horizon  lh03_vector_forge          8/8   partial=1.00 strict=1 (w=3)
+  long_horizon  lh04_ledger_roll          10/10  partial=1.00 strict=1 (w=4)
+  long_horizon  lh05_signal_chain         12/12  partial=1.00 strict=1 (w=5)
+  long_horizon  lh06_matrix_ladder        14/14  partial=1.00 strict=1 (w=6)
+  long_horizon  lh07_stats_cascade        16/16  partial=1.00 strict=1 (w=7)
+  long_horizon  lh08_token_pipeline       18/18  partial=1.00 strict=1 (w=8)
+  long_horizon  lh09_series_build         20/20  partial=1.00 strict=1 (w=9)
+  long_horizon  lh10_mega_etl             22/22  partial=1.00 strict=1 (w=10)
+  long_horizon  lh11_index_build           8/8   partial=1.00 strict=1 (w=3)
+  long_horizon  lh12_budget_forecast      10/10  partial=1.00 strict=1 (w=4)
+  ml            m01_tabular_classification   8/8   partial=1.00 strict=1 (w=3)
+  ml            m02_regression             9/9   partial=1.00 strict=1 (w=3)
+  ml            m03_clustering             9/9   partial=1.00 strict=1 (w=3)
+  ml            m04_dimreduction          10/10  partial=1.00 strict=1 (w=3)
+  ml            m05_text_classification    9/9   partial=1.00 strict=1 (w=3)
+  ml            m06_multiclass_digits      0/1   partial=0.00 strict=0 (w=3)
+  swe_bench     swe01_event_bus            0/1   partial=0.00 strict=0 (w=6)
+  swe_bench     swe02_mini_orm             0/1   partial=0.00 strict=0 (w=6)
+  swe_bench     swe03_template_render      0/1   partial=0.00 strict=0 (w=6)
+  swe_bench     swe04_unit_calc            0/1   partial=0.00 strict=0 (w=6)
+  swe_bench     swe05_ledger_balance      10/10  partial=1.00 strict=1 (w=6)
+  swe_bench     swe06_lru_writeback       11/11  partial=1.00 strict=1 (w=6)
+  swe_bench     swe07_router_dispatch     11/11  partial=1.00 strict=1 (w=6)
+  swe_bench     swe08_money_rounding      11/11  partial=1.00 strict=1 (w=6)
+
+  Category                strict     partial(weighted)
+  easy                  6/6       1.000
+  complex               7/8       0.875
+  data_analysis         7/8       0.875
+  algorithmic           5/7       0.652
+  long_horizon         12/12      1.000
+  ml                    5/6       0.833
+  debug                 0/6       0.000
+  swe_bench             4/8       0.500
+  compositional         3/7       0.429
+  competitive           0/4       0.000
+
+  TOTAL strict 49/72   weighted-partial 0.649
+
+  Wrote /Users/hangyu/Desktop/MiHaCoBench/results.json
+
+
+========== [fast] strict=47/72 weighted=0.6468 apparatus_issues=23 -> eval_fast_full.json ==========
+lse             11/11  partial=1.00 strict=1 (w=1)
+  easy          e02_ini_parser            18/18  partial=1.00 strict=1 (w=1)
+  easy          e03_freq_lru              12/12  partial=1.00 strict=1 (w=1)
+  easy          e04_roman_ledger          22/22  partial=1.00 strict=1 (w=1)
+  easy          e05_tiny_template         29/29  partial=1.00 strict=1 (w=1)
+  easy          e06_semver_order          14/14  partial=1.00 strict=1 (w=1)
+  long_horizon  lh01_two_step_tally        4/4   partial=1.00 strict=1 (w=1)
+  long_horizon  lh02_text_refine           6/6   partial=1.00 strict=1 (w=2)
+  long_horizon  lh03_vector_forge          8/8   partial=1.00 strict=1 (w=3)
+  long_horizon  lh04_ledger_roll          10/10  partial=1.00 strict=1 (w=4)
+  long_horizon  lh05_signal_chain         12/12  partial=1.00 strict=1 (w=5)
+  long_horizon  lh06_matrix_ladder        14/14  partial=1.00 strict=1 (w=6)
+  long_horizon  lh07_stats_cascade        16/16  partial=1.00 strict=1 (w=7)
+  long_horizon  lh08_token_pipeline       18/18  partial=1.00 strict=1 (w=8)
+  long_horizon  lh09_series_build         20/20  partial=1.00 strict=1 (w=9)
+  long_horizon  lh10_mega_etl             22/22  partial=1.00 strict=1 (w=10)
+  long_horizon  lh11_index_build           8/8   partial=1.00 strict=1 (w=3)
+  long_horizon  lh12_budget_forecast      10/10  partial=1.00 strict=1 (w=4)
+  ml            m01_tabular_classification   8/8   partial=1.00 strict=1 (w=3)
+  ml            m02_regression             9/9   partial=1.00 strict=1 (w=3)
+  ml            m03_clustering             9/9   partial=1.00 strict=1 (w=3)
+  ml            m04_dimreduction          10/10  partial=1.00 strict=1 (w=3)
+  ml            m05_text_classification    9/9   partial=1.00 strict=1 (w=3)
+  ml            m06_multiclass_digits      0/1   partial=0.00 strict=0 (w=3)
+  swe_bench     swe01_event_bus            0/1   partial=0.00 strict=0 (w=6)
+  swe_bench     swe02_mini_orm             0/1   partial=0.00 strict=0 (w=6)
+  swe_bench     swe03_template_render      0/1   partial=0.00 strict=0 (w=6)
+  swe_bench     swe04_unit_calc            0/1   partial=0.00 strict=0 (w=6)
+  swe_bench     swe05_ledger_balance      10/10  partial=1.00 strict=1 (w=6)
+  swe_bench     swe06_lru_writeback       11/11  partial=1.00 strict=1 (w=6)
+  swe_bench     swe07_router_dispatch     11/11  partial=1.00 strict=1 (w=6)
+  swe_bench     swe08_money_rounding      11/11  partial=1.00 strict=1 (w=6)
+
+  Category                strict     partial(weighted)
+  easy                  6/6       1.000
+  complex               5/8       0.860
+  data_analysis         7/8       0.875
+  algorithmic           5/7       0.652
+  long_horizon         12/12      1.000
+  ml                    5/6       0.833
+  debug                 0/6       0.000
+  swe_bench             4/8       0.500
+  compositional         3/7       0.429
+  competitive           0/4       0.000
+
+  TOTAL strict 47/72   weighted-partial 0.647
+
+  Wrote /Users/hangyu/Desktop/MiHaCoBench/results.json
+
+
+wrote /Users/hangyu/Desktop/MiHaCoBench/experiment_mihaco/results/grade_summary.json

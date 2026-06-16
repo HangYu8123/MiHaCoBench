@@ -1,0 +1,12 @@
+{
+  "id": "dbg02_resolve_order",
+  "category": "debug",
+  "title": "Fix dependency-order cycle detection",
+  "weight": 2,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["resolve_load_order"], "cli": false},
+  "grader": "grader/test_dbg02.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

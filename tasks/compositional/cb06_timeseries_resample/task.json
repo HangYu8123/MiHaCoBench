@@ -1,0 +1,12 @@
+{
+  "id": "cb06_timeseries_resample",
+  "category": "compositional",
+  "title": "Irregular Time-Series Resampling + Robust Outliers",
+  "weight": 4,
+  "packages": ["pandas", "numpy", "scipy"],
+  "entrypoints": {"module": "solution.py", "callables": ["resample_clean"], "cli": false},
+  "grader": "grader/test_cb06.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-16"
+}

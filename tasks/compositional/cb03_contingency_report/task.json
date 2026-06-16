@@ -1,0 +1,16 @@
+{
+  "id": "cb03_contingency_report",
+  "category": "compositional",
+  "title": "Survey Contingency Analysis",
+  "weight": 4,
+  "packages": ["numpy", "pandas", "scipy"],
+  "entrypoints": {
+    "module": "solution.py",
+    "callables": ["analyze"],
+    "cli": false
+  },
+  "grader": "grader/test_cb03.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

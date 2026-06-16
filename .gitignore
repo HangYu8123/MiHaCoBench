@@ -5,7 +5,10 @@ __pycache__/
 
 # Transient runner output
 results.json
-.github/
-AGENTS.MD
-CLAUDE.MD
 experiment_mihaco/results/
+
+# Ignore the .github/ working tree EXCEPT the CI workflows, which must be tracked
+# so GitHub Actions runs them. (The HarnessFlow pack under .github/HarnessFlow/ stays
+# untracked by this rule — drop the `.github/*` line if you want to version it too.)
+.github/*
+!.github/workflows/

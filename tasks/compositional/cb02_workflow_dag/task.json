@@ -1,0 +1,16 @@
+{
+  "id": "cb02_workflow_dag",
+  "category": "compositional",
+  "title": "YAML workflow DAG analyser",
+  "weight": 4,
+  "packages": ["pyyaml", "networkx", "jinja2"],
+  "entrypoints": {
+    "module": "solution.py",
+    "callables": ["build_report"],
+    "cli": false
+  },
+  "grader": "grader/test_cb02.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

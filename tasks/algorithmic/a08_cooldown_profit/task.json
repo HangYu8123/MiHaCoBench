@@ -1,0 +1,12 @@
+{
+  "id": "a08_cooldown_profit",
+  "category": "algorithmic",
+  "title": "Weighted interval scheduling with a mandatory cooldown gap",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["max_profit"], "cli": false},
+  "grader": "grader/test_a08.py",
+  "steps": null,
+  "complexity_target": "O(n log n)",
+  "created": "2026-06-16"
+}

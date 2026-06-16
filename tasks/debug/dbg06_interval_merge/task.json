@@ -1,0 +1,12 @@
+{
+  "id": "dbg06_interval_merge",
+  "category": "debug",
+  "title": "Fix interval merger to handle touching and unsorted intervals",
+  "weight": 2,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["merge_intervals"], "cli": false},
+  "grader": "grader/test_dbg06.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

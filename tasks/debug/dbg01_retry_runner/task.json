@@ -1,0 +1,12 @@
+{
+  "id": "dbg01_retry_runner",
+  "category": "debug",
+  "title": "Fix the retry runner's terminal failure state",
+  "weight": 2,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["run_with_retries"], "cli": false},
+  "grader": "grader/test_dbg01.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

@@ -1,0 +1,122 @@
+{
+  "bench_root": "/Users/hangyu/Desktop/MiHaCoBench",
+  "exp_root": "/Users/hangyu/Desktop/MiHaCoBench/experiment_mihaco",
+  "tasks": [
+    {
+      "cat": "algorithmic",
+      "id": "a02_longest_distinct_window"
+    },
+    {
+      "cat": "algorithmic",
+      "id": "a03_window_maxima"
+    },
+    {
+      "cat": "algorithmic",
+      "id": "a04_edit_distance"
+    },
+    {
+      "cat": "algorithmic",
+      "id": "a05_resolve_build_order"
+    },
+    {
+      "cat": "complex",
+      "id": "c02_wsgi_microframework"
+    },
+    {
+      "cat": "complex",
+      "id": "c03_graph_engine"
+    },
+    {
+      "cat": "complex",
+      "id": "c04_formula_engine"
+    },
+    {
+      "cat": "complex",
+      "id": "c05_etl_framework"
+    },
+    {
+      "cat": "data_analysis",
+      "id": "d02_sales_trend"
+    },
+    {
+      "cat": "data_analysis",
+      "id": "d03_customer_segments"
+    },
+    {
+      "cat": "data_analysis",
+      "id": "d04_survey_correlation"
+    },
+    {
+      "cat": "data_analysis",
+      "id": "d05_experiment_anova"
+    },
+    {
+      "cat": "easy",
+      "id": "e02_ini_parser"
+    },
+    {
+      "cat": "easy",
+      "id": "e03_freq_lru"
+    },
+    {
+      "cat": "easy",
+      "id": "e04_roman_ledger"
+    },
+    {
+      "cat": "easy",
+      "id": "e05_tiny_template"
+    },
+    {
+      "cat": "long_horizon",
+      "id": "lh02_text_refine"
+    },
+    {
+      "cat": "long_horizon",
+      "id": "lh03_vector_forge"
+    },
+    {
+      "cat": "long_horizon",
+      "id": "lh04_ledger_roll"
+    },
+    {
+      "cat": "long_horizon",
+      "id": "lh05_signal_chain"
+    },
+    {
+      "cat": "long_horizon",
+      "id": "lh06_matrix_ladder"
+    },
+    {
+      "cat": "long_horizon",
+      "id": "lh07_stats_cascade"
+    },
+    {
+      "cat": "long_horizon",
+      "id": "lh08_token_pipeline"
+    },
+    {
+      "cat": "long_horizon",
+      "id": "lh09_series_build"
+    },
+    {
+      "cat": "long_horizon",
+      "id": "lh10_mega_etl"
+    },
+    {
+      "cat": "ml",
+      "id": "m02_regression"
+    },
+    {
+      "cat": "ml",
+      "id": "m03_clustering"
+    },
+    {
+      "cat": "ml",
+      "id": "m04_dimreduction"
+    },
+    {
+      "cat": "ml",
+      "id": "m05_text_classification"
+    }
+  ]
+}

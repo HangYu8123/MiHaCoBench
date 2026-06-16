@@ -84,3 +84,24 @@ Run (from repo root):
 python benchmark/run_benchmark.py --self-check --task <TASK_ID>
 ```
 It must print `[PASS] ... gold N/N  broken k/N` with k<N. Only then are you done.
+
+## Optional: independent-oracle grounding + mutation corpus (swe_bench / competitive)
+
+To make a task's ground truth independent of the (AI-authored) gold and to seed
+the grader with inputs that kill *real* wrong solutions, add an oracle-grounded
+mutation corpus. See RUBRIC.md §7 and the working exemplars:
+
+* single-file, true-external oracle: `experiment_mihaco/mutation_gen/gen_cp03.py`
+  (`re`) + `tasks/competitive/cp03_string_period/grader/test_cp03.py`
+* multi-file, library oracle: `experiment_mihaco/mutation_gen/gen_swe03.py`
+  (`jinja2`) + `tasks/swe_bench/swe03_template_render/grader/test_swe03.py`
+
+Pattern: write `experiment_mihaco/mutation_gen/gen_<id>.py` that loads the gold,
+defines an INDEPENDENT `oracle(...)` (trusted library where one exists, else a
+structurally-different brute force, optionally + a metamorphic relation), collects
+wrong solutions (`_mutation_seed.generate_mutants(gold_src)` + the `__broken` +
+hand-written common mistakes), and calls `build_corpus(...)` / `write_corpus(...)`
+(it asserts `gold == oracle` on every kept input). Add a parametrized
+`test_mutation_corpus` to the grader that replays
+`expected/mutation_corpus.json`, and record the citation in `task.json`
+`source`/`oracle`. The corpus lives in `expected/` (never shown to the agent).

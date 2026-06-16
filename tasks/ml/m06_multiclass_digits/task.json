@@ -1,0 +1,12 @@
+{
+  "id": "m06_multiclass_digits",
+  "category": "ml",
+  "title": "10-class digit recognition on sklearn digits dataset",
+  "weight": 3,
+  "packages": ["scikit-learn", "numpy"],
+  "entrypoints": {"module": "solution.py", "callables": ["train", "predict"], "cli": false},
+  "grader": "grader/test_m06.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-15"
+}

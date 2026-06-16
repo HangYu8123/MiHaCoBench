@@ -1,0 +1,12 @@
+{
+  "id": "cb05_config_validator",
+  "category": "compositional",
+  "title": "YAML config validator with canonical hashing",
+  "weight": 4,
+  "packages": ["pyyaml"],
+  "entrypoints": {"module": "solution.py", "callables": ["validate_config"], "cli": false},
+  "grader": "grader/test_cb05.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-16"
+}

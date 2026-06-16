@@ -1,0 +1,12 @@
+{
+  "id": "e06_semver_order",
+  "category": "easy",
+  "title": "Semantic-version precedence (SemVer 2.0.0)",
+  "weight": 1,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["parse", "compare", "sort_versions"], "cli": true},
+  "grader": "grader/test_e06.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-16"
+}

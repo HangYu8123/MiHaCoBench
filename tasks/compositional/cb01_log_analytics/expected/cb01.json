@@ -1,0 +1,38 @@
+{
+  "per_endpoint": {
+    "/api/checkout": {
+      "count": 200,
+      "p95_latency": 5449.005499999994,
+      "error_rate": 0.09
+    },
+    "/api/health": {
+      "count": 1000,
+      "p95_latency": 15.157649999999997,
+      "error_rate": 0.0
+    },
+    "/api/orders": {
+      "count": 300,
+      "p95_latency": 209.17395000000002,
+      "error_rate": 0.06333333333333334
+    },
+    "/api/products": {
+      "count": 800,
+      "p95_latency": 85.25429999999999,
+      "error_rate": 0.01
+    },
+    "/api/search": {
+      "count": 400,
+      "p95_latency": 169.23684999999995,
+      "error_rate": 0.0425
+    },
+    "/api/users": {
+      "count": 500,
+      "p95_latency": 112.09694999999998,
+      "error_rate": 0.034
+    }
+  },
+  "slowest_endpoint": "/api/checkout",
+  "anomalies": [
+    "/api/checkout"
+  ]
+}
