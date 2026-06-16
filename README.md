@@ -4,7 +4,7 @@
 pipeline of an AI coding system — not just raw model capability.**
 
 ![Python](https://img.shields.io/badge/python-3.11.x-blue)
-![Tasks](https://img.shields.io/badge/tasks-72-success)
+![Tasks](https://img.shields.io/badge/tasks-79-success)
 ![Categories](https://img.shields.io/badge/categories-10-informational)
 ![Self-check](https://img.shields.io/badge/self--check-passing-brightgreen)
 
@@ -12,7 +12,9 @@ pipeline of an AI coding system — not just raw model capability.**
 > **HarnessFlow PyBench** — it is the same project as MiHaCoBench. The original
 > tasks were authored on **2026-06-15** against a pinned, offline **Python 3.11.5**
 > environment to minimise training-data contamination and guarantee reproducibility;
-> **14 additional hard, harness-discriminating tasks were added on 2026-06-16**
+> **21 additional hard tasks were added on 2026-06-16** — 14 spec-density/multi-file
+> tasks plus a 7-task *tier-2* batch (hard complexity gates, a large reactive system,
+> and subtle boundary-ambiguity tasks) built to break single-shot agents
 > (see _"Distinguishing harnesses"_ below).
 
 ---
@@ -34,22 +36,22 @@ DS-1000, LiveCodeBench, BigO(Bench),** and **TheAgentCompany**.
 
 ## What it measures
 
-**72 tasks across ten categories**, each stressing a different ability of a coding
+**79 tasks across ten categories**, each stressing a different ability of a coding
 harness. Tasks are **weighted** when aggregating so a harness cannot inflate its
 score by acing only the easy ones.
 
 | Category | Count | What it probes | Per-task weight |
 |---|---|---|---|
 | `easy` | 6 | single-file (~100 LOC), stdlib/≤4 packages — baseline competence | 1 |
-| `complex` | 8 | multi-file / multi-class systems (gold ≈400–800 LOC) using a large package (SQLAlchemy, jinja2, networkx, pandas) | 5 |
+| `complex` | 9 | multi-file / multi-class systems (gold ≈400–800 LOC) using a large package (SQLAlchemy, jinja2, networkx, pandas) | 5 |
 | `data_analysis` | 8 | load → analyse → **correct statistics** → **visualise** | 3 |
-| `algorithmic` | 7 | time / space **complexity** + readability (1 easy, 1 medium, 5 hard) | 2 / 4 / 8 |
+| `algorithmic` | 9 | time / space **complexity** + readability (1 easy, 2 medium, 6 hard) | 2 / 4 / 8 |
 | `long_horizon` | 12 | dependency chains of 2–20 steps — a wrong early step **cascades** | steps / 2 |
 | `ml` | 6 | scikit-learn tasks — held-out, leakage-resistant | 3 |
-| `debug` | 6 | fix a planted bug in given code (SWE-bench FAIL_TO_PASS / PASS_TO_PASS) — fault localization without regressions | 2 |
+| `debug` | 7 | fix a planted bug in given code (SWE-bench FAIL_TO_PASS / PASS_TO_PASS) — fault localization without regressions | 2 |
 | `swe_bench` | 8 | **multi-file** mini-repo fault localization — fix a bug whose symptom crosses a module boundary, FAIL_TO_PASS + PASS_TO_PASS, grader loads ≥2 modules (SWE-bench style) | 6 |
-| `compositional` | 7 | compose ≥2 (often ≥3) libraries under a precise contract with full **exception-path** coverage + surface-form checks (BigCodeBench style) | 4 |
-| `competitive` | 4 | contest-level algorithms with a **hard complexity gate** + adversarial inputs; novel/twisted to resist contamination (LiveCodeBench / APPS style) | 8 |
+| `compositional` | 8 | compose ≥2 (often ≥3) libraries under a precise contract with full **exception-path** coverage + surface-form checks (BigCodeBench style) | 4 |
+| `competitive` | 6 | contest-level algorithms with a **hard complexity gate** + adversarial inputs; novel/twisted to resist contamination (LiveCodeBench / APPS style) | 8 |
 
 Example task ids: `easy/e01_csv_pulse`, `complex/c01_job_queue_sqla`,
 `data_analysis/d05_experiment_anova`, `algorithmic/a04_edit_distance`,
@@ -85,12 +87,36 @@ shows reliably separate harnesses and break single-shot agents:
 Each still ships a working **gold** reference (so it is solvable) and a
 deliberately-**broken** one (so the grader is provably discriminating).
 
+#### What the validation showed (and the *tier-2* batch)
+
+Those first 14 tasks were graded by two harness arms (a no-harness single-shot
+baseline and a 3-subagent "fast" harness, both held at the same model, spec-only
+isolation; see `experiment_mihaco/results/NEW_TASKS_DISCRIMINATION.md`). **Both
+arms solved 14/14.** The graders are valid, but because every contract is
+*fully specified*, a careful frontier model just reads the spec and avoids each
+trap — so well-specified spec-density tasks alone do **not** separate harnesses.
+
+The **tier-2 batch (7 tasks, 2026-06-16)** targets the regime where a single shot
+actually *fails*:
+
+* **hard complexity gates** — `competitive/cp05_kth_subarray_sum`,
+  `competitive/cp06_range_distinct_offline`, `algorithmic/a08_cooldown_profit`: a
+  naive / wrong-complexity solution **physically times out** on a large adversarial
+  input (not avoidable by careful reading — BigO(Bench) shows models struggle most
+  at complexity-constrained generation);
+* **a large intricate system** — `complex/c09_reactive_engine`: a reactive dataflow
+  engine whose **transitive cache invalidation**, topological batch recompute, and
+  cycle roll-back must all be right at once;
+* **subtle boundary ambiguity** (the `c01` mechanism) — `debug/dbg07_token_bucket`
+  (refill-vs-admit ordering), `algorithmic/a09_interval_stab` (closed-vs-half-open
+  endpoints), `compositional/cb08_cursor_paginate` (exclusive-cursor + tie-break).
+
 ## Design pillars
 
 1. **Grader integrity (SWE-bench style).** Every grader must **pass** on a hidden
    *gold* reference and **fail** on a deliberately-*broken* reference. A task with no
    broken variant, or whose grader passes the broken one, is reported INVALID.
-   `run_benchmark.py` (default mode) verifies this for all 72 tasks — it is the
+   `run_benchmark.py` (default mode) verifies this for all 79 tasks — it is the
    benchmark's own correctness test.
 2. **Isolation.** Gold and broken references live under `_solutions/`, a tree
    entirely separate from `tasks/`. A real evaluation gives the agent only
@@ -212,17 +238,17 @@ candidate_solutions/
 **Example output** (trimmed):
 
 ```
-SELF-CHECK — validating 72 graders (must PASS on gold, FAIL on broken)
+SELF-CHECK — validating 79 graders (must PASS on gold, FAIL on broken)
 
   [PASS] easy          e01_csv_pulse            gold 11/11 broken 9/11
   ...
-SELF-CHECK: 72/72 graders valid.
+SELF-CHECK: 79/79 graders valid.
 ```
 
 ```
 EVALUATE — candidate root: /path/to/candidate_solutions
   ...
-  TOTAL strict 72/72   weighted-partial 1.000
+  TOTAL strict 79/79   weighted-partial 1.000
   Wrote /…/results.json
 ```
 
@@ -359,7 +385,7 @@ For each task the runner records:
   so easy tasks cannot dominate the total.
 
 `--candidate-root` writes [`results.json`](results.json) with each task's
-`passed/total/partial/strict`, per-category totals, `strict_total` (e.g. `72/72`),
+`passed/total/partial/strict`, per-category totals, `strict_total` (e.g. `79/79`),
 and the overall `weighted_partial`.
 
 Readability (`grading_utils.code_quality_report`) and the empirical Big-O fit
@@ -367,7 +393,7 @@ Readability (`grading_utils.code_quality_report`) and the empirical Big-O fit
 gating. Complexity is *enforced by feasibility*: a wrong-complexity solution
 physically times out on a large adversarial input.
 
-> **Note on the committed `results.json`.** Its scores (72/72 strict,
+> **Note on the committed `results.json`.** Its scores (79/79 strict,
 > `weighted_partial = 1.0`) come from pointing `--candidate-root` at the **gold
 > `_solutions/` tree itself** — a sanity baseline confirming the graders accept the
 > reference solutions. It is **not** an independent agent result, and its

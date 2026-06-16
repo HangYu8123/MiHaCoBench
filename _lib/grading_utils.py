@@ -3,7 +3,7 @@
 Every task grader imports from this module so that solution resolution, isolation,
 import-by-path, timeouts, complexity estimation, plot validation, artifact
 provenance, and the advisory code-quality report are implemented **once** and
-behave identically across all 72 tasks.
+behave identically across all 79 tasks.
 
 Design decisions (grounded in the Step-3 challenge + research):
 

@@ -1,0 +1,12 @@
+{
+  "id": "c09_reactive_engine",
+  "category": "complex",
+  "title": "Reactive dataflow engine with transitive cache invalidation",
+  "weight": 5,
+  "packages": ["networkx"],
+  "entrypoints": {"module": "engine.py", "callables": ["Engine"], "cli": false},
+  "grader": "grader/test_c09.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-16"
+}

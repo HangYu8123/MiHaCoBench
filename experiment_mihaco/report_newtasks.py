@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Build the discrimination report for the 2026-06-16 hard expansion (14 tasks).
+"""Discrimination report for the 2026-06-16 expansion (21 new tasks, two batches).
 
-Reads the per-arm full eval JSONs written by grade_all.py
-(results/eval_<arm>_full.json), filters to the 14 newly-added tasks, and emits a
-naive-vs-fast comparison to results/NEW_TASKS_DISCRIMINATION.md.
-
-The point: the original suite is solved ~one-shot by a strong model (the earlier
-pilot scored naive 34/35). If the new tasks drop that strict-pass rate and/or the
-fast harness beats naive on them, the new tasks discriminate as designed.
+Reads the per-arm full eval JSONs (results/eval_<arm>_full.json from grade_all.py),
+filters to the new tasks, and emits a naive-vs-fast comparison to
+results/NEW_TASKS_DISCRIMINATION.md, split into:
+  * batch-1 (14): fully-specified spec-density / multi-file / stats tasks;
+  * batch-2 / tier-2 (7): hard complexity gates, a large reactive system, and
+    subtle boundary-ambiguity tasks — built so a single shot can actually fail.
 
 Usage:  python3 experiment_mihaco/report_newtasks.py
 """
@@ -19,23 +18,31 @@ from pathlib import Path
 EXP = Path(__file__).resolve().parent
 RES = EXP / "results"
 
-NEW = [
-    ("swe_bench", "swe05_ledger_balance", "SWE multi-file: dropped debit entries (sign bug across module)"),
-    ("swe_bench", "swe06_lru_writeback", "SWE multi-file: stale read — LRU.put skips overwrite"),
-    ("swe_bench", "swe07_router_dispatch", "SWE multi-file: trailing-slash path normalization"),
-    ("swe_bench", "swe08_money_rounding", "SWE multi-file: truncate-vs-round per-line tax"),
-    ("complex", "c07_migration_runner", "spec-density: int-vs-string migration version ordering"),
-    ("complex", "c08_pivot_report", "spec-density: NaN-vs-0 fill + tie-break"),
-    ("easy", "e06_semver_order", "spec-density: numeric pre-release precedence"),
-    ("compositional", "cb05_config_validator", "multi-lib: ordered exception precedence (KeyError first)"),
-    ("compositional", "cb06_timeseries_resample", "multi-lib: NaN-aware zscore/mean"),
-    ("compositional", "cb07_graph_spectral", "multi-lib: Fiedler = 2nd-smallest eigenvalue"),
-    ("data_analysis", "d07_paired_design", "stats twist: paired vs unpaired t-test"),
-    ("data_analysis", "d08_multiple_comparisons", "stats twist: Holm-corrected pairwise"),
-    ("long_horizon", "lh11_index_build", "cascade: 6-step TF-IDF (df bug)"),
-    ("long_horizon", "lh12_budget_forecast", "cascade: 8-step forecast (reversed cumsum)"),
+# (category, id, weight, style, tier)
+TASKS = [
+    ("swe_bench", "swe05_ledger_balance", 6, "SWE multi-file: dropped debit entries", 1),
+    ("swe_bench", "swe06_lru_writeback", 6, "SWE multi-file: stale read after write", 1),
+    ("swe_bench", "swe07_router_dispatch", 6, "SWE multi-file: trailing-slash normalization", 1),
+    ("swe_bench", "swe08_money_rounding", 6, "SWE multi-file: truncate-vs-round tax", 1),
+    ("complex", "c07_migration_runner", 5, "spec-density: int-vs-string version order", 1),
+    ("complex", "c08_pivot_report", 5, "spec-density: NaN-vs-0 fill + tie-break", 1),
+    ("easy", "e06_semver_order", 1, "spec-density: numeric pre-release order", 1),
+    ("compositional", "cb05_config_validator", 4, "multi-lib: exception precedence", 1),
+    ("compositional", "cb06_timeseries_resample", 4, "multi-lib: NaN-aware zscore/mean", 1),
+    ("compositional", "cb07_graph_spectral", 4, "multi-lib: Fiedler = 2nd eigenvalue", 1),
+    ("data_analysis", "d07_paired_design", 3, "stats twist: paired vs unpaired t-test", 1),
+    ("data_analysis", "d08_multiple_comparisons", 3, "stats twist: Holm correction", 1),
+    ("long_horizon", "lh11_index_build", 3, "cascade: 6-step TF-IDF (df bug)", 1),
+    ("long_horizon", "lh12_budget_forecast", 4, "cascade: 8-step forecast", 1),
+    # ---- tier-2 (built to fail single-shot) ----
+    ("competitive", "cp05_kth_subarray_sum", 8, "HARD GATE: kth subarray sum (O(n log V))", 2),
+    ("competitive", "cp06_range_distinct_offline", 8, "HARD GATE: offline range-distinct (BIT)", 2),
+    ("algorithmic", "a08_cooldown_profit", 8, "HARD GATE + greedy trap: cooldown DP", 2),
+    ("algorithmic", "a09_interval_stab", 4, "ambiguity: closed-vs-half-open endpoints", 2),
+    ("complex", "c09_reactive_engine", 5, "large system: transitive cache invalidation", 2),
+    ("debug", "dbg07_token_bucket", 2, "ambiguity: refill-vs-admit ordering", 2),
+    ("compositional", "cb08_cursor_paginate", 4, "ambiguity: exclusive cursor + tie-break", 2),
 ]
-IDS = [i for _, i, _ in NEW]
 
 
 def load_arm(arm: str) -> dict:
@@ -46,6 +53,13 @@ def load_arm(arm: str) -> dict:
     return {r["id"]: r for r in data.get("tasks", [])}
 
 
+def cell(r):
+    if not r:
+        return "— (no sol)"
+    tag = "PASS" if r["strict"] else f"{r['partial']:.2f}"
+    return f"{r['passed']}/{r['total']} ({tag})"
+
+
 def main() -> int:
     arms = ["naive", "fast"]
     rows = {a: load_arm(a) for a in arms}
@@ -54,88 +68,84 @@ def main() -> int:
         print("WARNING: missing eval files for:", missing,
               "(run: python3 experiment_mihaco/grade_all.py naive fast)")
 
-    lines = []
-    lines.append("# MiHaCoBench — New-Task Discrimination Report (2026-06-16 hard expansion)")
-    lines.append("")
-    lines.append("Two harness arms (held at **Sonnet 4.6**, spec-only isolation) over the **14 new "
-                 "tasks**, graded by the suite's own independent graders. `naive` = 1 single-shot "
-                 "implementer; `fast` = devil ∥ research → implementer (3 subagents). Compare to the "
-                 "earlier pilot where naive scored **34/35 strict (≈0.97)** on the original tasks.")
-    lines.append("")
-    lines.append("| task | style | naive | fast |")
-    lines.append("|---|---|---|---|")
+    out = []
+    out.append("# MiHaCoBench — New-Task Discrimination Report (2026-06-16 expansion)")
+    out.append("")
+    out.append("Two harness arms held at **Sonnet 4.6**, spec-only isolation, graded by the suite's own "
+               "independent graders. `naive` = 1 single-shot implementer; `fast` = devil ∥ research → "
+               "implementer (3 subagents). Reference: the earlier pilot scored naive **34/35 (≈0.97)** "
+               "on the original tasks. Cell = `passed/total (PASS | partial)`.")
+    out.append("")
 
-    agg = {a: {"strict": 0, "wsum": 0.0, "w": 0.0, "n": 0} for a in arms}
-    WEIGHT = {"swe_bench": 6, "complex": 5, "easy": 1, "compositional": 4,
-              "data_analysis": 3, "long_horizon": {"lh11_index_build": 3, "lh12_budget_forecast": 4}}
+    agg = {}
+    for tier, title in [(1, "Batch 1 — fully-specified spec-density / multi-file / stats (14 tasks)"),
+                        (2, "Batch 2 / tier-2 — hard gates + large system + boundary ambiguity (7 tasks)")]:
+        out.append(f"## {title}")
+        out.append("")
+        out.append("| task | style | naive | fast |")
+        out.append("|---|---|---|---|")
+        a = {x: {"strict": 0, "wsum": 0.0, "w": 0.0, "n": 0} for x in arms}
+        for cat, tid, w, style, tr in TASKS:
+            if tr != tier:
+                continue
+            rn, rf = rows["naive"].get(tid), rows["fast"].get(tid)
+            out.append(f"| `{tid}` | {style} | {cell(rn)} | {cell(rf)} |")
+            for arm, r in (("naive", rn), ("fast", rf)):
+                if r:
+                    a[arm]["strict"] += r["strict"]
+                    a[arm]["wsum"] += w * r["partial"]
+                    a[arm]["w"] += w
+                    a[arm]["n"] += 1
+        agg[tier] = a
+        out.append("")
+        out.append("| arm | strict | weighted-partial | graded |")
+        out.append("|---|---|---|---|")
+        for arm in arms:
+            g = a[arm]
+            wp = g["wsum"] / g["w"] if g["w"] else 0.0
+            out.append(f"| {arm} | {g['strict']}/{g['n']} | {wp:.3f} | {g['n']} |")
+        out.append("")
 
-    def cell(r):
-        if not r:
-            return "— (no sol)"
-        tag = "PASS" if r["strict"] else f"{r['partial']:.2f}"
-        return f"{r['passed']}/{r['total']} ({tag})"
+    # Discriminators: tasks where naive and fast disagree (different strict, or a
+    # partial gap) — these are the tasks where the harness actually moved the needle.
+    discs = []
+    for cat, tid, w, style, tr in TASKS:
+        rn, rf = rows["naive"].get(tid), rows["fast"].get(tid)
+        if rn and rf and (rn["strict"] != rf["strict"] or abs(rn["partial"] - rf["partial"]) >= 0.1):
+            discs.append((tid, rn, rf, style))
 
-    for cat, tid, style in NEW:
-        rn = rows["naive"].get(tid)
-        rf = rows["fast"].get(tid)
-        lines.append(f"| `{tid}` | {style} | {cell(rn)} | {cell(rf)} |")
-        w = WEIGHT[cat][tid] if isinstance(WEIGHT[cat], dict) else WEIGHT[cat]
-        for a, r in (("naive", rn), ("fast", rf)):
-            if r:
-                agg[a]["strict"] += r["strict"]
-                agg[a]["wsum"] += w * r["partial"]
-                agg[a]["w"] += w
-                agg[a]["n"] += 1
-
-    lines.append("")
-    lines.append("## Aggregate over the 14 new tasks")
-    lines.append("")
-    lines.append("| arm | strict pass | weighted-partial | tasks graded |")
-    lines.append("|---|---|---|---|")
-    for a in arms:
-        g = agg[a]
-        wp = g["wsum"] / g["w"] if g["w"] else 0.0
-        lines.append(f"| {a} | {g['strict']}/{g['n']} | {wp:.3f} | {g['n']} |")
-    lines.append("")
-    ns = agg["naive"]["strict"]
-    nn = agg["naive"]["n"] or 1
-    fs = agg["fast"]["strict"]
-    fn = agg["fast"]["n"] or 1
-    lines.append("## Finding")
-    lines.append("")
-    if ns == nn and fs == fn:
-        lines.append(f"**Both arms strict-passed all {nn} new tasks (naive {ns}/{nn}, fast {fs}/{fn}).** "
-                     "The graders are *valid* (each fails its broken reference), but at this "
-                     "difficulty/specification level the tasks are **not yet discriminating** for a "
-                     "frontier model: every trap (use `ttest_rel`, integer-order versions, fill 0 not "
-                     "NaN, exception precedence, NaN-aware stats, reversed-cumsum cascade) is **spelled "
-                     "out in `TASK.md`**, and a careful model that reads the fully-specified contract "
-                     "avoids it. This mirrors the original suite (pilot: naive 34/35) and the project's "
-                     "own conclusion that *harness value concentrates on under-specified / genuinely-hard "
-                     "work, not on well-specified tasks a strong model one-shots.*")
-        lines.append("")
-        lines.append("**To actually discriminate, a task must sit in the regime where a single shot "
-                     "*fails*** — i.e. one of: (a) genuine algorithmic hardness behind a tight "
-                     "complexity/feasibility gate (LiveCodeBench-Hard / BigO(Bench): a wrong or naive "
-                     "solution physically times out — not avoidable by careful reading); (b) a large, "
-                     "intricate multi-module system with enough interacting constraints that one-shot "
-                     "correctness is unlikely (BigCodeBench-Hard); or (c) a deliberately **subtle / "
-                     "under-specified** clause the grader silently enforces (the `c01` mechanism — the "
-                     "one task that actually split the arms in the pilot). The valid path forward is a "
-                     "harder *tier-2* batch built on (a)+(b), and optionally (c).")
+    # Finding
+    b1n, b2n = agg.get(1, {}).get("naive", {}), agg.get(2, {}).get("naive", {})
+    b2f = agg.get(2, {}).get("fast", {})
+    out.append("## Finding")
+    out.append("")
+    if discs:
+        out.append("**Harness discriminators (naive ≠ fast):**")
+        for tid, rn, rf, style in discs:
+            out.append(f"* `{tid}` ({style}) — naive {cell(rn)} vs fast {cell(rf)}: the single-shot "
+                       "arm gets it wrong; the harness's review/iteration catches it.")
+        out.append("")
     else:
-        lines.append(f"**naive {ns}/{nn} strict, fast {fs}/{fn} strict** over the new tasks (vs ~0.97 on "
-                     "the original suite). Where naive < fast, the harness added measurable value; where "
-                     "both miss, the task is hard for this model class. n=1 per arm — exploratory.")
-    lines.append("")
-    lines.append("_n=1 per arm; model = Sonnet 4.6; spec-only isolation. Exploratory, not statistically "
-                 "significant — see `COMPARISON_LOG.md` caveats._")
-    lines.append("")
+        out.append("**No harness discriminator surfaced this run** (naive == fast on every graded task).")
+        out.append("")
+    out.append(f"* **Batch 1** (fully specified): naive **{b1n.get('strict', 0)}/{b1n.get('n', 0)}** strict. "
+               "Every trap is spelled out in `TASK.md`, so a careful frontier model avoids it — these "
+               "validate coverage but do **not** discriminate at single-shot.")
+    out.append(f"* **Tier-2** (built to fail single-shot): naive **{b2n.get('strict', 0)}/{b2n.get('n', 0)}** "
+               f"strict, fast **{b2f.get('strict', 0)}/{b2f.get('n', 0)}** strict. The hard-gate tasks "
+               "reject a naive/wrong-complexity solution by *feasibility* (it times out — not avoidable "
+               "by reading), and the ambiguity tasks turn on a boundary the spec states precisely but is "
+               "easy to misimplement. Lower strict counts and/or a naive-vs-fast gap here are the "
+               "intended discrimination.")
+    out.append("")
+    out.append("_n=1 per arm; Sonnet 4.6; spec-only isolation. Exploratory, not statistically significant "
+               "— see `COMPARISON_LOG.md` caveats._")
+    out.append("")
 
-    out = RES / "NEW_TASKS_DISCRIMINATION.md"
-    out.write_text("\n".join(lines))
-    print("\n".join(lines))
-    print("\nwrote", out)
+    target = RES / "NEW_TASKS_DISCRIMINATION.md"
+    target.write_text("\n".join(out))
+    print("\n".join(out))
+    print("\nwrote", target)
     return 0
 
 

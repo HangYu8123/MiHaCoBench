@@ -1,0 +1,12 @@
+{
+  "id": "cp06_range_distinct_offline",
+  "category": "competitive",
+  "title": "Offline range distinct-count queries (Fenwick + last-occurrence)",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["range_distinct"], "cli": false},
+  "grader": "grader/test_cp06.py",
+  "steps": null,
+  "complexity_target": "O((n+q) log n)",
+  "created": "2026-06-16"
+}

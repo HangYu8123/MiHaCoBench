@@ -84,14 +84,17 @@ class DependencyGraph:
     # ------------------------------------------------------------------ #
 
     def dependents(self, name: Any) -> set:
-        """Return the **transitive** dependents of *name* (excludes *name*).
+        """Return the dependents of *name* (excludes *name*).
 
-        These are every cell whose cached value must be invalidated when *name*
-        changes. Implemented with :func:`networkx.descendants`.
+        These are the cells whose cached value must be invalidated when *name*
+        changes.
         """
         if not self._g.has_node(name):
             return set()
-        return set(nx.descendants(self._g, name))
+        # BUG: returns only the DIRECT successors, not the transitive descendants,
+        # so a cell two or more hops downstream is never invalidated and keeps
+        # serving a stale cached value after an upstream input changes.
+        return set(self._g.successors(name))
 
     def dependencies(self, name: Any) -> set:
         """Return the *direct* dependencies of *name* (its in-neighbours)."""
