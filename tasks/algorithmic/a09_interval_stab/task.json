@@ -1,0 +1,12 @@
+{
+  "id": "a09_interval_stab",
+  "category": "algorithmic",
+  "title": "Minimum points to stab all closed intervals",
+  "weight": 4,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["min_stabbing_points"], "cli": false},
+  "grader": "grader/test_a09.py",
+  "steps": null,
+  "complexity_target": "O(n log n)",
+  "created": "2026-06-16"
+}

@@ -2,9 +2,9 @@ name: self-check
 
 # MiHaCoBench's own integrity test. Every grader MUST pass on the gold reference
 # and FAIL on the deliberately-broken one; `run_benchmark.py --self-check` enforces
-# this across all 58 tasks and exits non-zero if any grader is invalid. Gating every
+# this for every task and exits non-zero if any grader is invalid. Gating every
 # push / PR on it means a careless edit to a grader, a gold reference, or a broken
-# reference can never silently break the "58/58 graders valid" invariant — and it
+# reference can never silently break the "all graders valid" invariant — and it
 # verifies the pinned requirements.txt installs cleanly on a fresh machine.
 
 on:
@@ -37,5 +37,5 @@ jobs:
       - name: Preflight (packages importable + complexity-gate status)
         run: python run_benchmark.py --preflight
 
-      - name: Self-check (58/58 graders must pass gold, fail broken)
+      - name: Self-check (every grader must pass gold, fail broken)
         run: python run_benchmark.py --self-check
