@@ -1,37 +1,29 @@
-"""pipeline.py — Public facade class Pipeline.
-
-This is the only file the grader imports.
-"""
+"""pipeline.py — Public facade class Pipeline (the grader imports THIS file only)."""
 
 from __future__ import annotations
 
 import sys
 import os
 
-# Ensure the package directory is on sys.path so relative imports work
-_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-if _THIS_DIR not in sys.path:
-    sys.path.insert(0, _THIS_DIR)
+# Ensure local modules are importable when grader imports pipeline.py by path
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+if _this_dir not in sys.path:
+    sys.path.insert(0, _this_dir)
 
 import pandas as pd
 
-from config import (
-    PipelineConfig,
-    FilterConfig,
-    AggregateConfig,
-    parse_yaml,
-)
-from transforms import build_transform
-from loaders import SQLAlchemyLoader
+from config import parse_yaml, PipelineConfig
+from transforms import build_transform, Transform
+from loaders import SQLiteLoader
 
 
 class Pipeline:
-    """YAML-driven ETL pipeline: Extract → Transform → Load → Query."""
+    """YAML-driven ETL pipeline: Extract → Transform → Load."""
 
     def __init__(self, config: PipelineConfig) -> None:
         self._config = config
-        self._loader: SQLAlchemyLoader | None = None
-        self._result_df: pd.DataFrame | None = None
+        self._loader = SQLiteLoader()
+        self._result: pd.DataFrame | None = None
 
     @classmethod
     def from_yaml(cls, yaml_text: str, data_dir: str | None = None) -> "Pipeline":
@@ -56,34 +48,17 @@ class Pipeline:
         # Extract
         df = pd.read_csv(self._config.extract.csv)
 
-        # Validate filter columns up front (before applying transforms)
-        # Per spec: raise ValueError if filter column is not in the DataFrame
-        # after loading CSV (i.e., at the point the filter would be applied,
-        # but the spec says "after loading the CSV but before applying transforms"
-        # for certain ops). We validate at application time for aggregate,
-        # and up-front for filter.
-        # Actually, re-reading the spec:
-        #   "After loading the CSV but before applying transforms, raise ValueError if
-        #    any column named in the pipeline spec ... does not exist in the DataFrame."
-        # This means validate ALL required columns against the initial CSV columns.
-        # But then: "raise ValueError if a column required by a transform step is
-        # missing from the DataFrame at the point where that step is applied."
-        # These two statements describe the same requirement but the second is more
-        # precise (at point of application). We'll validate at the point of application.
-
-        # Apply transforms
-        for transform_config in self._config.transforms:
-            transform = build_transform(transform_config)
+        # Build and validate+apply transforms in order
+        for cfg in self._config.transforms:
+            transform: Transform = build_transform(cfg)
+            # Validate against current state of DataFrame
+            transform.validate(df)
             df = transform.apply(df)
 
         # Load
-        table_name = self._config.load.table
-        # Reuse the same loader (and engine) across run() calls for idempotency
-        if self._loader is None:
-            self._loader = SQLAlchemyLoader(table_name=table_name)
-        self._loader.load(df)
+        self._loader.load(df, self._config.load.table)
 
-        self._result_df = df
+        self._result = df
         return df
 
     def query(self, sql: str) -> list[dict]:
@@ -92,8 +67,6 @@ class Pipeline:
         Returns a list of row dicts (column name → Python value). ``run()``
         must have been called first; raises ``RuntimeError`` if not.
         """
-        if self._loader is None or not self._loader._loaded:
-            raise RuntimeError(
-                "query() called before run(). Call Pipeline.run() first."
-            )
+        if not self._loader.loaded:
+            raise RuntimeError("query() called before run(); call run() first.")
         return self._loader.query(sql)

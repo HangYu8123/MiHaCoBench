@@ -1,5 +1,3 @@
-"""ledger.py — Facade class Ledger for the double-entry ledger system."""
-
 from accounts import Account
 from transactions import post_entries
 
@@ -7,7 +5,7 @@ from transactions import post_entries
 class Ledger:
     def __init__(self) -> None:
         """An empty ledger with no accounts."""
-        self._accounts: dict = {}
+        self._accounts: dict[str, Account] = {}
 
     def add_account(self, name: str) -> None:
         """Create a new zero-balance Account named `name`.
@@ -30,16 +28,17 @@ class Ledger:
         After validation, delegate to transactions.post_entries, which applies
         every entry to its account.
         """
-        # Validation step 1: amounts must sum to zero
-        if sum(amt for _, amt in entries) != 0:
+        # Validate sum of entries equals zero
+        total = sum(amount for _, amount in entries)
+        if total != 0:
             raise ValueError("entries must balance")
 
-        # Validation step 2: all account names must exist
+        # Validate all account names exist (before any mutation)
         for name, _ in entries:
             if name not in self._accounts:
                 raise KeyError(name)
 
-        # Delegate to post_entries — applies ALL entries including debits
+        # Delegate to post_entries — applies every entry unconditionally
         post_entries(entries, self._accounts)
 
     def balance(self, name: str) -> int:
@@ -53,4 +52,4 @@ class Ledger:
         After ANY balanced posting this must be exactly 0 — every debit is
         matched by an equal credit.
         """
-        return sum(acc.balance for acc in self._accounts.values())
+        return sum(a.balance for a in self._accounts.values())

@@ -1,43 +1,18 @@
-"""
-loaders.py — SQLAlchemy loader that persists a DataFrame to an in-memory SQLite DB.
-"""
+"""loaders.py — SQLAlchemy loader that persists a DataFrame to an in-memory DB."""
+
 from __future__ import annotations
 
-from typing import List
-
 import pandas as pd
-import sqlalchemy
-from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
 
 
-class SQLiteLoader:
-    """Loads a DataFrame into an in-memory SQLite database using SQLAlchemy 2.0."""
+class SQLAlchemyLoader:
+    """Loads a DataFrame into a SQLAlchemy-managed table."""
 
-    def __init__(self) -> None:
-        # Use check_same_thread=False to allow use from multiple contexts if needed.
-        self._engine = create_engine(
-            "sqlite:///:memory:",
-            connect_args={"check_same_thread": False},
-        )
-        self._loaded = False
+    def __init__(self, engine: Engine, table: str) -> None:
+        self.engine = engine
+        self.table = table
 
-    def load(self, df: pd.DataFrame, table_name: str) -> None:
-        """Persist df to the SQLite table. Replaces existing data."""
-        with self._engine.connect() as conn:
-            df.to_sql(table_name, con=conn, if_exists="replace", index=False)
-            conn.commit()
-        self._loaded = True
-
-    def query(self, sql: str) -> List[dict]:
-        """Execute a raw SQL string and return a list of row dicts.
-
-        Raises RuntimeError if load() has not been called yet.
-        """
-        if not self._loaded:
-            raise RuntimeError(
-                "Pipeline.query() called before Pipeline.run(). Call run() first."
-            )
-        with self._engine.connect() as conn:
-            result = conn.execute(text(sql))
-            rows = [dict(row._mapping) for row in result]
-        return rows
+    def load(self, df: pd.DataFrame) -> None:
+        """Write df to the configured table, replacing existing data."""
+        df.to_sql(self.table, con=self.engine, if_exists="replace", index=False)

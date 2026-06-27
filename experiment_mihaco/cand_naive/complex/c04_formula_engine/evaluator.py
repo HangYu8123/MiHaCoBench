@@ -1,212 +1,176 @@
 """
 evaluator.py — Walks the AST and evaluates it against a Sheet.
-
-The evaluator is given a callback `get_cell_value(ref: str) -> float | str`
-and `get_range_values(range_ref: str) -> list[float | str]`.
 """
 
 import re
 import numpy as np
-from typing import Callable
+
+from parser import (
+    NumLiteral, StrLiteral, CellRef, RangeRef,
+    BinOp, UnaryMinus, FuncCall, IfExpr,
+    parse_formula,
+)
 
 
-def _parse_cell_ref(ref: str):
-    """Split 'A1' -> ('A', 1), 'AA10' -> ('AA', 10)."""
-    m = re.match(r'^([A-Z]+)(\d+)$', ref)
-    if not m:
-        raise ValueError(f"Invalid cell reference: {ref!r}")
-    return m.group(1), int(m.group(2))
+_REF_PATTERN = re.compile(r"^([A-Z]+)(\d+)$")
 
 
-def _col_to_index(col: str) -> int:
-    """Convert column letters to 0-based index. 'A'->0, 'Z'->25, 'AA'->26."""
+def _col_index(letters: str) -> int:
+    """Convert column letters to a 0-based column index (A=0, B=1, …)."""
     result = 0
-    for ch in col:
+    for ch in letters:
         result = result * 26 + (ord(ch) - ord('A') + 1)
     return result - 1
 
 
-def expand_range(range_ref: str):
+def _expand_range(range_str: str) -> list[str]:
     """
     Expand 'A1:B3' into a list of cell references.
-    Returns list in row-major order.
+    Top-left and bottom-right are determined by col/row ordering.
     """
-    left, right = range_ref.split(':')
-    col1, row1 = _parse_cell_ref(left)
-    col2, row2 = _parse_cell_ref(right)
+    left, right = range_str.split(':')
+    m1 = _REF_PATTERN.match(left)
+    m2 = _REF_PATTERN.match(right)
+    if not m1 or not m2:
+        raise ValueError(f"Invalid range: {range_str}")
+    col1 = _col_index(m1.group(1))
+    row1 = int(m1.group(2))
+    col2 = _col_index(m2.group(1))
+    row2 = int(m2.group(2))
 
-    c1 = _col_to_index(col1)
-    c2 = _col_to_index(col2)
-    r1, r2 = min(row1, row2), max(row1, row2)
-    ca, cb = min(c1, c2), max(c1, c2)
+    min_col, max_col = min(col1, col2), max(col1, col2)
+    min_row, max_row = min(row1, row2), max(row1, row2)
 
     refs = []
-    for r in range(r1, r2 + 1):
-        for c in range(ca, cb + 1):
-            col_str = _index_to_col(c)
-            refs.append(f"{col_str}{r}")
+    for r in range(min_row, max_row + 1):
+        for c in range(min_col, max_col + 1):
+            col_letters = _col_num_to_letters(c)
+            refs.append(f"{col_letters}{r}")
     return refs
 
 
-def _index_to_col(idx: int) -> str:
-    """Convert 0-based column index to letters. 0->'A', 25->'Z', 26->'AA'."""
-    result = []
-    idx += 1  # 1-based
-    while idx > 0:
-        idx, rem = divmod(idx - 1, 26)
-        result.append(chr(ord('A') + rem))
-    return ''.join(reversed(result))
+def _col_num_to_letters(c: int) -> str:
+    """Convert 0-based column index back to letters."""
+    letters = []
+    c += 1
+    while c > 0:
+        c, rem = divmod(c - 1, 26)
+        letters.append(chr(ord('A') + rem))
+    return ''.join(reversed(letters))
 
 
-class Evaluator:
-    def __init__(self,
-                 get_cell: Callable[[str], 'float | str'],
-                 current_path: 'set[str] | None' = None):
-        """
-        get_cell: callable(ref) -> float | str, handles cycle detection externally
-        current_path: set of cell refs currently being evaluated (for cycle detection)
-        """
-        self._get_cell = get_cell
-        self._path = current_path if current_path is not None else set()
+def evaluate(node, sheet, visiting: set | None = None) -> float | str:
+    """
+    Recursively evaluate an AST node in the context of *sheet*.
 
-    def eval(self, node: dict) -> 'float | str':
-        t = node['type']
-        if t == 'number':
-            return float(node['value'])
-        if t == 'string':
-            return node['value']
-        if t == 'cell_ref':
-            return self._get_cell(node['ref'])
-        if t == 'range':
-            raise ValueError("Range used outside of function context")
-        if t == 'binop':
-            return self._eval_binop(node)
-        if t == 'func':
-            return self._eval_func(node)
-        if t == 'if':
-            return self._eval_if(node)
-        raise ValueError(f"Unknown AST node type: {t!r}")
+    *visiting* tracks the set of cell refs currently on the call stack
+    for cycle detection. It is managed externally by the Sheet when
+    evaluating a whole cell.
+    """
+    if visiting is None:
+        visiting = set()
 
-    def _eval_binop(self, node: dict) -> float:
-        op = node['op']
-        left = self.eval(node['left'])
-        right = self.eval(node['right'])
-        # Coerce to float for arithmetic
-        try:
-            l = float(left)
-            r = float(right)
-        except (TypeError, ValueError):
-            raise ValueError(f"Non-numeric operands for {op!r}: {left!r}, {right!r}")
-        if op == '+':
-            return l + r
-        if op == '-':
-            return l - r
-        if op == '*':
-            return l * r
-        if op == '/':
-            if r == 0:
-                raise ZeroDivisionError("Division by zero")
-            return l / r
-        if op == '^':
-            return float(l ** r)
-        raise ValueError(f"Unknown operator: {op!r}")
+    if isinstance(node, NumLiteral):
+        return float(node.value)
 
-    def _get_range_values(self, range_ref: str) -> list:
-        refs = expand_range(range_ref)
-        values = []
-        for ref in refs:
-            v = self._get_cell(ref)
-            values.append(v)
-        return values
+    if isinstance(node, StrLiteral):
+        return node.value
 
-    def _to_numeric(self, values: list, skip_non_numeric: bool = True) -> np.ndarray:
-        """Convert list of values to numpy array, skipping non-numeric if requested."""
-        nums = []
-        for v in values:
-            try:
-                nums.append(float(v))
-            except (TypeError, ValueError):
-                if not skip_non_numeric:
-                    nums.append(0.0)
-        return np.array(nums, dtype=float)
+    if isinstance(node, CellRef):
+        ref = node.ref
+        if ref in visiting:
+            raise ValueError(f"Circular reference detected involving {ref}")
+        return sheet._eval_cell(ref, visiting)
 
-    def _eval_func(self, node: dict) -> float:
-        name = node['name']
-        args = node['args']
+    if isinstance(node, RangeRef):
+        # Ranges are only valid inside function calls; if we get here bare,
+        # just return the range string (should not happen in valid formulas).
+        return node.range_str
 
-        # Collect all numeric values from args (ranges or expressions)
-        values = []
-        for arg in args:
-            if arg['type'] == 'range':
-                values.extend(self._get_range_values(arg['ref']))
-            else:
-                v = self.eval(arg)
-                values.append(v)
+    if isinstance(node, UnaryMinus):
+        val = evaluate(node.operand, sheet, visiting)
+        return -float(val)
 
-        arr = self._to_numeric(values)
+    if isinstance(node, BinOp):
+        left  = evaluate(node.left,  sheet, visiting)
+        right = evaluate(node.right, sheet, visiting)
+        l = float(left)
+        r = float(right)
+        op = node.op
+        if op == '+': return l + r
+        if op == '-': return l - r
+        if op == '*': return l * r
+        if op == '/': return l / r
+        if op == '^': return float(l ** r)
+        raise ValueError(f"Unknown operator {op}")
 
-        if name == 'SUM':
-            return float(np.sum(arr)) if len(arr) > 0 else 0.0
-        if name == 'AVG':
-            return float(np.mean(arr)) if len(arr) > 0 else 0.0
-        if name == 'MIN':
-            return float(np.min(arr)) if len(arr) > 0 else 0.0
-        if name == 'MAX':
-            return float(np.max(arr)) if len(arr) > 0 else 0.0
-        raise ValueError(f"Unknown function: {name!r}")
+    if isinstance(node, FuncCall):
+        return _eval_func(node.name, node.args, sheet, visiting)
 
-    def _eval_if(self, node: dict) -> 'float | str':
-        cond_node = node['cond']
-        cond_result = self._eval_cond(cond_node)
-        if cond_result:
-            return self.eval(node['then'])
+    if isinstance(node, IfExpr):
+        return _eval_if(node, sheet, visiting)
+
+    raise TypeError(f"Unknown AST node type: {type(node)}")
+
+
+def _get_numeric_values(args: list, sheet, visiting: set) -> list[float]:
+    """Collect numeric values from a list of arg nodes (ranges, refs, exprs)."""
+    values = []
+    for arg in args:
+        if isinstance(arg, RangeRef):
+            refs = _expand_range(arg.range_str)
+            for ref in refs:
+                try:
+                    v = sheet._eval_cell(ref, visiting)
+                    values.append(float(v))
+                except (ValueError, TypeError):
+                    pass  # skip non-numeric
         else:
-            return self.eval(node['else'])
-
-    def _eval_cond(self, cond_node: dict) -> bool:
-        op = cond_node['op']
-        left = self.eval(cond_node['left'])
-        right = self.eval(cond_node['right'])
-
-        # Try numeric comparison first
-        try:
-            l = float(left)
-            r = float(right)
-            if op == '=':
-                return l == r
-            if op == '<>':
-                return l != r
-            if op == '<':
-                return l < r
-            if op == '<=':
-                return l <= r
-            if op == '>':
-                return l > r
-            if op == '>=':
-                return l >= r
-        except (TypeError, ValueError):
-            # Fall back to string comparison
-            if op == '=':
-                return str(left) == str(right)
-            if op == '<>':
-                return str(left) != str(right)
-            # Other comparisons on strings
-            if op == '<':
-                return str(left) < str(right)
-            if op == '<=':
-                return str(left) <= str(right)
-            if op == '>':
-                return str(left) > str(right)
-            if op == '>=':
-                return str(left) >= str(right)
-
-        raise ValueError(f"Unknown comparison operator: {op!r}")
+            v = evaluate(arg, sheet, visiting)
+            try:
+                values.append(float(v))
+            except (ValueError, TypeError):
+                pass
+    return values
 
 
-def evaluate(ast_node: dict, get_cell: Callable[[str], 'float | str'],
-             current_path: 'set[str] | None' = None) -> 'float | str':
-    """
-    Evaluate an AST node against the given cell-value function.
-    """
-    ev = Evaluator(get_cell, current_path)
-    return ev.eval(ast_node)
+def _eval_func(name: str, args: list, sheet, visiting: set) -> float:
+    if name == "SUM":
+        vals = _get_numeric_values(args, sheet, visiting)
+        return float(np.sum(vals)) if vals else 0.0
+    if name == "AVG":
+        vals = _get_numeric_values(args, sheet, visiting)
+        return float(np.mean(vals)) if vals else 0.0
+    if name == "MIN":
+        vals = _get_numeric_values(args, sheet, visiting)
+        return float(np.min(vals)) if vals else 0.0
+    if name == "MAX":
+        vals = _get_numeric_values(args, sheet, visiting)
+        return float(np.max(vals)) if vals else 0.0
+    raise ValueError(f"Unknown function: {name}")
+
+
+def _eval_if(node: IfExpr, sheet, visiting: set) -> float | str:
+    left  = evaluate(node.left,  sheet, visiting)
+    right = evaluate(node.right, sheet, visiting)
+
+    # Try numeric comparison, fall back to string
+    try:
+        l = float(left)
+        r = float(right)
+    except (ValueError, TypeError):
+        l = left
+        r = right
+
+    op = node.cmp_op
+    if   op == '=':  cond = l == r
+    elif op == '<>': cond = l != r
+    elif op == '<':  cond = l <  r
+    elif op == '<=': cond = l <= r
+    elif op == '>':  cond = l >  r
+    elif op == '>=': cond = l >= r
+    else:
+        raise ValueError(f"Unknown comparison operator: {op}")
+
+    branch = node.true_val if cond else node.false_val
+    return evaluate(branch, sheet, visiting)

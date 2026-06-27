@@ -1,23 +1,13 @@
-"""tax.py — Per-line tax computation."""
+"""tax.py — per-line tax calculation."""
 
 from decimal import Decimal
 import money
 
 
 def line_tax(amount_cents: int, rate: float) -> int:
-    """Compute tax for a single line item.
+    """Compute amount_cents * rate as an exact Decimal and return rounded cents.
 
-    Parameters
-    ----------
-    amount_cents : int
-        The line item amount in whole cents.
-    rate : float
-        The tax rate (e.g. 0.0825 for 8.25%).
-
-    Returns
-    -------
-    int
-        The tax amount in whole cents, rounded half-to-even.
+    Uses money.round_cents for half-to-even rounding.
     """
-    exact = Decimal(str(amount_cents)) * Decimal(str(rate))
+    exact = Decimal(amount_cents) * Decimal(str(rate))
     return money.round_cents(exact)

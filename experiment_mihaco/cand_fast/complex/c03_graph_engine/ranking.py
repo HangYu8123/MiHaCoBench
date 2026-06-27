@@ -1,103 +1,83 @@
-"""ranking.py — PageRank and degree centrality."""
+"""Node-ranking algorithms: PageRank and degree centrality."""
 
 import numpy as np
 
 
-def pagerank(graph, damping: float = 0.85, max_iter: int = 100, tol: float = 1e-9) -> dict:
+def pagerank(graph, damping: float = 0.85, max_iter: int = 100,
+             tol: float = 1e-9) -> dict:
+    """Compute PageRank via power iteration.
+
+    Returns a dict {node: float} for every node in the graph.
+    Values sum to approximately 1.0.
     """
-    Compute PageRank using power iteration.
-
-    PR(v) = (1 - d) / N + d * sum(PR(u) / out_degree(u)) for each in-neighbour u
-
-    Returns {node: pagerank_value} for every node.
-    Values sum to ~1.0 (within 1e-6).
-    """
-    nodes = list(graph._nodes)
-    N = len(nodes)
-
+    N = graph.num_nodes
     if N == 0:
         return {}
 
-    if N == 1:
-        return {nodes[0]: 1.0}
-
+    # Deterministic node ordering (works for mixed types via repr fallback)
+    nodes = sorted(graph._adj.keys(), key=repr)
     idx = {n: i for i, n in enumerate(nodes)}
 
-    # Build transition matrix M: M[i, j] = probability of going from j to i
-    M = np.zeros((N, N), dtype=np.float64)
+    # Out-degree array (self-loops count toward out-degree)
+    out_deg = np.array(
+        [sum(1 for _ in graph.neighbors(n)) for n in nodes],
+        dtype=float,
+    )
 
-    dangling = []  # nodes with no outgoing edges
+    dangling_mask = (out_deg == 0)
 
-    for node in nodes:
-        j = idx[node]
-        # For directed graphs, out-edges are stored in _adj[node]
-        # For undirected graphs, same _adj[node] stores neighbors
-        out_neighbors = list(graph._adj[node].items())
-        out_degree = len(out_neighbors)
-
-        if out_degree == 0:
-            dangling.append(j)
-        else:
-            for neighbor, _weight in out_neighbors:
-                i = idx[neighbor]
-                M[i, j] += 1.0 / out_degree
-
-    # Power iteration
-    r = np.ones(N, dtype=np.float64) / N
-    dangling_weights = np.ones(N, dtype=np.float64) / N  # uniform dangling distribution
+    pr = np.ones(N) / N
 
     for _ in range(max_iter):
-        # Handle dangling nodes: their mass is redistributed uniformly
-        dangling_sum = sum(r[j] for j in dangling)
+        new_pr = np.zeros(N)
 
-        r_new = (1.0 - damping) / N + damping * (M @ r + dangling_sum * dangling_weights)
+        # Dangling-node rank is distributed uniformly
+        dangling_sum = pr[dangling_mask].sum()
 
-        # Check convergence
-        if np.abs(r_new - r).sum() < tol:
-            r = r_new
+        # Accumulate contributions from out-edges
+        for u_idx, u in enumerate(nodes):
+            if out_deg[u_idx] == 0:
+                continue
+            contrib = pr[u_idx] / out_deg[u_idx]
+            for v, _ in graph.neighbors(u):
+                new_pr[idx[v]] += contrib
+
+        new_pr = (1.0 - damping) / N + damping * (new_pr + dangling_sum / N)
+
+        if np.sum(np.abs(new_pr - pr)) < tol:
+            pr = new_pr
             break
-        r = r_new
+        pr = new_pr
 
-    return {nodes[i]: float(r[i]) for i in range(N)}
+    return {nodes[i]: float(pr[i]) for i in range(N)}
 
 
 def degree_centrality(graph) -> dict:
-    """
-    Compute degree centrality for each node.
+    """Return {node: degree / (N-1)}.
 
-    For undirected: degree / (N - 1)
-    For directed: (in_degree + out_degree) / (N - 1)
-    For N <= 1: {node: 0.0} for all nodes.
-
-    Self-loops: for directed graphs, a self-loop contributes 1 to out-degree
-    and 1 to in-degree, so +2 to total degree.
+    For directed graphs, degree = in-degree + out-degree.
+    For undirected graphs, each edge already appears in both adj-lists so
+    len(neighbors(n)) gives the correct degree directly.
+    For N <= 1, every node maps to 0.0.
     """
     N = graph.num_nodes
-
     if N <= 1:
-        return {n: 0.0 for n in graph._nodes}
+        return {n: 0.0 for n in graph._adj}
 
-    result = {}
+    denom = float(N - 1)
 
-    if not graph._directed:
-        # Undirected: degree is number of neighbors (self-loop counts once)
-        for node in graph._nodes:
-            deg = len(graph._adj[node])
-            result[node] = deg / (N - 1)
+    if graph._directed:
+        # Out-degree from adjacency dict
+        out_deg = {n: sum(1 for _ in graph.neighbors(n)) for n in graph._adj}
+        # In-degree by scanning all neighbor lists
+        in_deg = {n: 0 for n in graph._adj}
+        for u in graph._adj:
+            for v, _ in graph.neighbors(u):
+                in_deg[v] += 1
+        return {n: (out_deg[n] + in_deg[n]) / denom for n in graph._adj}
     else:
-        # Directed: total degree = out_degree + in_degree
-        # out-degree from _adj[node]
-        # in-degree: count how many nodes have this node as neighbor
-
-        # Build in-degree map
-        in_degree = {n: 0 for n in graph._nodes}
-        for node in graph._nodes:
-            for neighbor in graph._adj[node]:
-                in_degree[neighbor] = in_degree.get(neighbor, 0) + 1
-
-        for node in graph._nodes:
-            out_deg = len(graph._adj[node])
-            in_deg = in_degree.get(node, 0)
-            result[node] = (out_deg + in_deg) / (N - 1)
-
-    return result
+        # Undirected: neighbors already stores both directions
+        return {
+            n: len(list(graph.neighbors(n))) / denom
+            for n in graph._adj
+        }

@@ -1,0 +1,14 @@
+{
+  "id": "cp08_min_unstable_partition",
+  "category": "competitive",
+  "title": "Fewest stable segments, lexicographically-smallest cuts (two-pointer reach + min-segment DP)",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["min_unstable_cuts"], "cli": false},
+  "grader": "grader/test_cp08.py",
+  "steps": null,
+  "complexity_target": "O(n log n)",
+  "created": "2026-06-17",
+  "source": "Partition into the fewest contiguous segments with max-min<=K, returning the lexicographically-smallest end indices among all minimum partitions. Intended solution: O(n) two-pointer reach[] + right-to-left min-segment DP + earliest-legal-cut search; an O(n^2) feasibility recompute times out. Grader ground truth: independent brute force that enumerates all 2^(n-1) partitions on small inputs.",
+  "oracle": "brute-force"
+}

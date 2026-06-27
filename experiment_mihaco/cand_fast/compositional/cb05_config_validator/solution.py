@@ -1,82 +1,110 @@
-import yaml
-import re
-import json
+"""
+Compositional 05 — config_validator
+YAML Config Validator with Canonical Hashing
+"""
+
 import hashlib
+import json
+import re
+
+import yaml
 
 
 def validate_config(yaml_text: str, schema: dict) -> dict:
     """
-    Parse yaml_text, validate against schema, and return the validated config
-    with an added '_hash' key containing the SHA-256 fingerprint.
+    Parse yaml_text with yaml.safe_load, validate the resulting mapping
+    against schema, and return a new dict with validated key/value pairs
+    plus an added "_hash" key.
     """
-    # Step 1: Parse YAML
+    # Step 1: Parse YAML; wrap any parse error as ValueError.
     try:
         parsed = yaml.safe_load(yaml_text)
-    except yaml.YAMLError:
-        raise ValueError("Failed to parse YAML text")
+    except yaml.YAMLError as exc:
+        raise ValueError(str(exc)) from exc
 
+    # Also raise ValueError if result is not a dict (e.g., None, list, scalar).
     if not isinstance(parsed, dict):
-        raise ValueError("YAML content must be a mapping (dict)")
+        raise ValueError(
+            f"YAML document must be a mapping, got {type(parsed).__name__}"
+        )
 
+    # Step 2 & 3: Iterate schema keys in sorted order, build validated dict.
     validated = {}
 
-    # Step 2 & 3: Iterate schema keys in sorted order and build validated dict
     for key in sorted(schema):
         rule = schema[key]
         required = rule.get("required", False)
+        has_default = "default" in rule
+        field_type = rule.get("type")
 
         if key not in parsed:
-            # Key is absent
+            # Presence check: required takes absolute precedence over default.
             if required:
                 raise KeyError(key)
-            elif "default" in rule:
-                # Fill with default without type-checking
+            # Not required: use default if available, otherwise skip entirely.
+            if has_default:
                 validated[key] = rule["default"]
-            # else: skip key entirely
-        else:
-            value = parsed[key]
-            expected_type = rule["type"]
+            # If not required and no default, key is omitted from validated.
+            continue
 
-            # Type check (TypeError)
-            type_ok = False
-            if expected_type == "bool":
-                type_ok = isinstance(value, bool)
-            elif expected_type == "int":
-                type_ok = isinstance(value, int) and not isinstance(value, bool)
-            elif expected_type == "float":
-                type_ok = isinstance(value, (int, float)) and not isinstance(value, bool)
-            elif expected_type == "str":
-                type_ok = isinstance(value, str)
-            elif expected_type == "list":
-                type_ok = isinstance(value, list)
+        # Key is present — retrieve its value.
+        value = parsed[key]
 
+        # Type check (before constraint check, per precedence).
+        if field_type is not None:
+            type_ok = _check_type(value, field_type)
             if not type_ok:
                 raise TypeError(
-                    f"Key '{key}': expected type '{expected_type}', got {type(value).__name__}"
+                    f"Key '{key}': expected type '{field_type}', "
+                    f"got {type(value).__name__}"
                 )
 
-            # Constraint checks (ValueError)
-            if expected_type == "str" and "pattern" in rule:
-                if re.search(rule["pattern"], value) is None:
+        # Constraint check.
+        if field_type == "str":
+            pattern = rule.get("pattern")
+            if pattern is not None:
+                if re.search(pattern, value) is None:
                     raise ValueError(
-                        f"Key '{key}': value {value!r} does not match pattern {rule['pattern']!r}"
+                        f"Key '{key}': value {value!r} does not match "
+                        f"pattern {pattern!r}"
                     )
+        elif field_type in ("int", "float"):
+            if "min" in rule and value < rule["min"]:
+                raise ValueError(
+                    f"Key '{key}': value {value} is below minimum {rule['min']}"
+                )
+            if "max" in rule and value > rule["max"]:
+                raise ValueError(
+                    f"Key '{key}': value {value} is above maximum {rule['max']}"
+                )
 
-            if expected_type in ("int", "float"):
-                if "min" in rule and value < rule["min"]:
-                    raise ValueError(
-                        f"Key '{key}': value {value} is below minimum {rule['min']}"
-                    )
-                if "max" in rule and value > rule["max"]:
-                    raise ValueError(
-                        f"Key '{key}': value {value} is above maximum {rule['max']}"
-                    )
+        validated[key] = value
 
-            validated[key] = value
-
-    # Step 4: Compute hash BEFORE adding "_hash"
+    # Step 4: Compute SHA-256 hash over validated dict BEFORE adding "_hash".
     canonical = json.dumps(validated, sort_keys=True, separators=(",", ":"))
-    _hash = hashlib.sha256(canonical.encode()).hexdigest()
+    hash_hex = hashlib.sha256(canonical.encode()).hexdigest()
 
-    # Step 5: Return validated dict with "_hash" appended
-    return {**validated, "_hash": _hash}
+    # Step 5: Add "_hash" and return.
+    validated["_hash"] = hash_hex
+    return validated
+
+
+def _check_type(value, field_type: str) -> bool:
+    """
+    Return True if value matches the expected field_type.
+    Handles the bool-subclass-of-int edge case explicitly.
+    """
+    if field_type == "int":
+        # bool is a subclass of int; reject it explicitly.
+        return isinstance(value, int) and not isinstance(value, bool)
+    elif field_type == "float":
+        # Accept int (but not bool) and float.
+        return isinstance(value, (float, int)) and not isinstance(value, bool)
+    elif field_type == "bool":
+        return isinstance(value, bool)
+    elif field_type == "str":
+        return isinstance(value, str)
+    elif field_type == "list":
+        return isinstance(value, list)
+    # Unknown type: pass through (no check).
+    return True

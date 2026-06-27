@@ -1,0 +1,14 @@
+{
+  "id": "cp07_path_xor_sum",
+  "category": "competitive",
+  "title": "Sum of path XORs over all node pairs in a tree (root-prefix XOR + per-bit counting)",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["sum_path_xor"], "cli": false},
+  "grader": "grader/test_cp07.py",
+  "steps": null,
+  "complexity_target": "O(n log V)",
+  "created": "2026-06-17",
+  "source": "Sum over all unordered node pairs of the path-XOR in a tree. Intended solution uses the root-to-node prefix-XOR identity pathxor(a,b)=xr[a]^xr[b] plus per-bit cross-pair counting (O(n log V)); an all-pairs enumeration is O(n^2) and times out. Grader ground truth: an independent O(n^2) all-pairs BFS brute force on small trees.",
+  "oracle": "brute-force"
+}

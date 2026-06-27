@@ -1,12 +1,12 @@
 """
-Budget Forecast Pipeline — 8-step chain
+Budget Forecast Pipeline — 8-step chain.
 Usage: python solution.py --step <K> --in <input_json_path> --out <output_json_path>
 """
-
 import argparse
 import hashlib
 import json
-import sys
+import collections
+import itertools
 
 import numpy as np
 
@@ -14,180 +14,163 @@ import numpy as np
 INCOME_CATEGORIES = {"salary", "freelance", "bonus", "interest"}
 
 
-def compute_provenance(in_path: str) -> str:
-    raw = open(in_path, "rb").read()
-    return hashlib.sha256(raw).hexdigest()
+def provenance(raw_bytes: bytes) -> str:
+    return hashlib.sha256(raw_bytes).hexdigest()
 
 
-def write_output(out_path: str, step: int, data, provenance: str) -> None:
-    result = {"step": step, "data": data, "provenance": provenance}
-    with open(out_path, "w") as f:
-        json.dump(result, f)
+def write_output(out_path: str, step: int, data, prov: str) -> None:
+    result = {"step": step, "data": data, "provenance": prov}
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(json.dumps(result, ensure_ascii=False))
 
 
-def round6(x):
-    return round(x, 6)
+# ── Step 1: parse_sort ────────────────────────────────────────────────────────
+def step_parse_sort(raw_bytes: bytes) -> list:
+    payload = json.loads(raw_bytes)
+    transactions = payload["transactions"]
+    return sorted(transactions, key=lambda r: r["date"])
 
 
-def step1_parse_sort(in_path: str, out_path: str) -> None:
-    provenance = compute_provenance(in_path)
-    with open(in_path, "r") as f:
-        raw = json.load(f)
-    transactions = raw["transactions"]
-    sorted_transactions = sorted(transactions, key=lambda r: r["date"])
-    write_output(out_path, 1, sorted_transactions, provenance)
-
-
-def step2_sign_normalize(in_path: str, out_path: str) -> None:
-    provenance = compute_provenance(in_path)
-    with open(in_path, "r") as f:
-        artifact = json.load(f)
-    rows = artifact["data"]
+# ── Step 2: sign_normalize ────────────────────────────────────────────────────
+def step_sign_normalize(raw_bytes: bytes) -> list:
+    payload = json.loads(raw_bytes)
+    rows = payload["data"]
     result = []
     for row in rows:
-        row_copy = dict(row)
-        cat = row_copy.get("category", "")
-        amount = row_copy["amount"]
-        if cat in INCOME_CATEGORIES:
-            net = round6(float(amount))
-        else:
-            net = round6(-float(amount))
-        row_copy["net"] = net
-        result.append(row_copy)
-    write_output(out_path, 2, result, provenance)
+        amount = row["amount"]
+        category = row["category"]
+        net = amount if category in INCOME_CATEGORIES else -amount
+        # Do NOT round individual net values here — only round aggregates later.
+        new_row = dict(row)
+        new_row["net"] = net
+        result.append(new_row)
+    return result
 
 
-def step3_monthly_net(in_path: str, out_path: str) -> None:
-    provenance = compute_provenance(in_path)
-    with open(in_path, "r") as f:
-        artifact = json.load(f)
-    rows = artifact["data"]
-    # accumulate in order (rows already sorted by date from step 1)
-    monthly = {}
+# ── Step 3: monthly_net ───────────────────────────────────────────────────────
+def step_monthly_net(raw_bytes: bytes) -> dict:
+    payload = json.loads(raw_bytes)
+    rows = payload["data"]
+    monthly = collections.defaultdict(float)
     for row in rows:
         month = row["date"][:7]
-        net = float(row["net"])
-        if month not in monthly:
-            monthly[month] = 0.0
-        monthly[month] += net
-    # sort ascending by month key
-    sorted_monthly = {k: round6(v) for k, v in sorted(monthly.items())}
-    write_output(out_path, 3, sorted_monthly, provenance)
+        monthly[month] += row["net"]
+    # Sort keys ascending, round values to 6 decimals.
+    return {k: round(monthly[k], 6) for k in sorted(monthly.keys())}
 
 
-def step4_cumulative_balance(in_path: str, out_path: str) -> None:
-    provenance = compute_provenance(in_path)
-    with open(in_path, "r") as f:
-        artifact = json.load(f)
-    monthly = artifact["data"]
-    # sort by month key ascending
-    sorted_months = sorted(monthly.items())
+# ── Step 4: cumulative_balance ────────────────────────────────────────────────
+def step_cumulative_balance(raw_bytes: bytes) -> list:
+    payload = json.loads(raw_bytes)
+    monthly_net = payload["data"]
+    # Keys already sorted ascending (step 3 guarantees this), but sort again for safety.
+    sorted_months = sorted(monthly_net.keys())
     result = []
     running = 0.0
-    for month, net in sorted_months:
-        running += float(net)
-        result.append([month, round6(running)])
-    write_output(out_path, 4, result, provenance)
+    for month in sorted_months:
+        running += monthly_net[month]
+        result.append([month, round(running, 6)])
+    return result
 
 
-def step5_trend_fit(in_path: str, out_path: str) -> None:
-    provenance = compute_provenance(in_path)
-    with open(in_path, "r") as f:
-        artifact = json.load(f)
-    pairs = artifact["data"]
-    n_months = len(pairs)
-    indices = np.array(range(n_months), dtype=float)
-    balances = np.array([p[1] for p in pairs], dtype=float)
-    coeffs = np.polyfit(indices, balances, 1)
-    slope = round6(float(coeffs[0]))
-    intercept = round6(float(coeffs[1]))
-    data = {"slope": slope, "intercept": intercept, "n_months": n_months}
-    write_output(out_path, 5, data, provenance)
+# ── Step 5: trend_fit ─────────────────────────────────────────────────────────
+def step_trend_fit(raw_bytes: bytes) -> dict:
+    payload = json.loads(raw_bytes)
+    pairs = payload["data"]  # [[month, balance], ...]
+    n = len(pairs)
+    idx = list(range(n))
+    balances = [p[1] for p in pairs]
+    coeffs = np.polyfit(idx, balances, 1)  # [slope, intercept], highest degree first
+    slope = float(coeffs[0])
+    intercept = float(coeffs[1])
+    return {
+        "slope": round(slope, 6),
+        "intercept": round(intercept, 6),
+        "n_months": n,
+    }
 
 
-def step6_project(in_path: str, out_path: str) -> None:
-    provenance = compute_provenance(in_path)
-    with open(in_path, "r") as f:
-        artifact = json.load(f)
-    trend = artifact["data"]
-    slope = float(trend["slope"])
-    intercept = float(trend["intercept"])
-    n_months = int(trend["n_months"])
+# ── Step 6: project ───────────────────────────────────────────────────────────
+def step_project(raw_bytes: bytes) -> dict:
+    payload = json.loads(raw_bytes)
+    d = payload["data"]
+    slope = d["slope"]
+    intercept = d["intercept"]
+    n_months = d["n_months"]
     projection = []
     for i in range(n_months, n_months + 3):
-        projected_balance = round6(slope * i + intercept)
-        projection.append([i, projected_balance])
-    data = {
+        bal = slope * i + intercept
+        projection.append([i, round(bal, 6)])
+    return {
         "projection": projection,
-        "slope": round6(slope),
+        "slope": slope,
         "n_months": n_months,
     }
-    write_output(out_path, 6, data, provenance)
 
 
-def step7_scenario(in_path: str, out_path: str) -> None:
-    provenance = compute_provenance(in_path)
-    with open(in_path, "r") as f:
-        artifact = json.load(f)
-    proj_data = artifact["data"]
-    slope = float(proj_data["slope"])
-    n_months = int(proj_data["n_months"])
-    projection = proj_data["projection"]
-    adjusted = []
-    for entry in projection:
-        idx = entry[0]
-        bal = float(entry[1])
-        adjusted_bal = round6(bal * 1.10)
-        adjusted.append([idx, adjusted_bal])
-    data = {
+# ── Step 7: scenario ──────────────────────────────────────────────────────────
+def step_scenario(raw_bytes: bytes) -> dict:
+    payload = json.loads(raw_bytes)
+    d = payload["data"]
+    slope = d["slope"]
+    n_months = d["n_months"]
+    projection = d["projection"]
+    adjusted = [[idx, round(bal * 1.10, 6)] for idx, bal in projection]
+    return {
         "projection": adjusted,
-        "slope": round6(slope),
+        "slope": slope,
         "n_months": n_months,
     }
-    write_output(out_path, 7, data, provenance)
 
 
-def step8_summary(in_path: str, out_path: str) -> None:
-    provenance = compute_provenance(in_path)
-    with open(in_path, "r") as f:
-        artifact = json.load(f)
-    proj_data = artifact["data"]
-    slope = float(proj_data["slope"])
-    n_months = int(proj_data["n_months"])
-    projection = proj_data["projection"]
-    final_balance = round6(float(projection[-1][1]))
-    data = {
-        "final_balance": final_balance,
-        "slope": round6(slope),
+# ── Step 8: summary ───────────────────────────────────────────────────────────
+def step_summary(raw_bytes: bytes) -> dict:
+    payload = json.loads(raw_bytes)
+    d = payload["data"]
+    slope = d["slope"]
+    n_months = d["n_months"]
+    projection = d["projection"]
+    final_balance = projection[-1][1]  # last element's adjusted balance
+    return {
+        "final_balance": round(final_balance, 6),
+        "slope": slope,
         "n_months": n_months,
     }
-    write_output(out_path, 8, data, provenance)
 
 
-STEP_HANDLERS = {
-    1: step1_parse_sort,
-    2: step2_sign_normalize,
-    3: step3_monthly_net,
-    4: step4_cumulative_balance,
-    5: step5_trend_fit,
-    6: step6_project,
-    7: step7_scenario,
-    8: step8_summary,
+# ── Dispatch ──────────────────────────────────────────────────────────────────
+STEPS = {
+    1: step_parse_sort,
+    2: step_sign_normalize,
+    3: step_monthly_net,
+    4: step_cumulative_balance,
+    5: step_trend_fit,
+    6: step_project,
+    7: step_scenario,
+    8: step_summary,
 }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Budget Forecast Pipeline")
+    parser = argparse.ArgumentParser(description="Budget forecast pipeline")
     parser.add_argument("--step", type=int, required=True, help="Step number (1-8)")
-    parser.add_argument("--in", dest="in_path", required=True, help="Input JSON path")
-    parser.add_argument("--out", dest="out_path", required=True, help="Output JSON path")
+    parser.add_argument("--in", dest="input", required=True, help="Input JSON path")
+    parser.add_argument("--out", required=True, help="Output JSON path")
     args = parser.parse_args()
 
-    if args.step not in STEP_HANDLERS:
-        print(f"Unknown step: {args.step}. Must be 1-8.", file=sys.stderr)
-        sys.exit(1)
+    if args.step not in STEPS:
+        raise ValueError(f"Unknown step: {args.step}. Must be 1-8.")
 
-    STEP_HANDLERS[args.step](args.in_path, args.out_path)
+    # Read file bytes once; compute provenance from exact bytes.
+    raw_bytes = open(args.input, "rb").read()
+    prov = provenance(raw_bytes)
+
+    # Compute result.
+    fn = STEPS[args.step]
+    data = fn(raw_bytes)
+
+    # Write output.
+    write_output(args.out, args.step, data, prov)
 
 
 if __name__ == "__main__":

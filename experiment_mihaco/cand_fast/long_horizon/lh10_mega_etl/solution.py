@@ -1,119 +1,88 @@
-#!/usr/bin/env python3
-"""
-Mega ETL pipeline — 20-step chain.
-Usage: python solution.py --step <K> --in <input_json> --out <output_json>
-"""
-
 import argparse
 import hashlib
 import json
-import itertools
-import sys
 
 
-def compute_provenance(in_path: str) -> str:
-    """SHA256 of exact bytes of the input file."""
-    with open(in_path, 'rb') as f:
-        return hashlib.sha256(f.read()).hexdigest()
+def step_parse(inp):
+    return [float(v) for v in inp['values']]
 
 
-def step1_parse(data):
-    """Read 'values' key; convert each to float."""
-    return [float(x) for x in data["values"]]
-
-
-def step2_add_const(data):
-    """Add 7.0 to every element."""
+def step_add_const(data):
     return [x + 7.0 for x in data]
 
 
-def step3_double(data):
-    """Multiply every element by 2."""
-    return [x * 2.0 for x in data]
+def step_double(data):
+    return [x * 2 for x in data]
 
 
-def step4_mod(data):
-    """Apply modulo 11 to every element (floating-point %)."""
-    return [x % 11.0 for x in data]
+def step_mod(data):
+    return [x % 11 for x in data]
 
 
-def step5_scale_by_index(data):
-    """Multiply each element by its 1-based position."""
+def step_scale_by_index(data):
     return [v * (i + 1) for i, v in enumerate(data)]
 
 
-def step6_cumsum(data):
-    """Running cumulative sum."""
+def step_cumsum(data):
     result = []
-    running = 0.0
+    total = 0.0
     for x in data:
-        running += x
-        result.append(running)
+        total += x
+        result.append(total)
     return result
 
 
-def step7_prefix_max(data):
-    """Running maximum from left."""
+def step_prefix_max(data):
     result = []
-    running_max = None
+    cur_max = float('-inf')
     for x in data:
-        if running_max is None or x > running_max:
-            running_max = x
-        result.append(running_max)
+        cur_max = max(cur_max, x)
+        result.append(cur_max)
     return result
 
 
-def step8_prefix_min(data):
-    """Running minimum from right: result[i] = min(data[i..end])."""
+def step_prefix_min(data):
+    # RIGHT-to-left: result[i] = min(data[i], data[i+1], ..., data[n-1])
     n = len(data)
     result = [0.0] * n
-    running_min = None
+    cur_min = float('inf')
     for i in range(n - 1, -1, -1):
-        if running_min is None or data[i] < running_min:
-            running_min = data[i]
-        result[i] = running_min
+        cur_min = min(cur_min, data[i])
+        result[i] = cur_min
     return result
 
 
-def step9_diffs(data):
-    """Consecutive differences: result[i] = data[i+1] - data[i]."""
+def step_diffs(data):
     return [data[i + 1] - data[i] for i in range(len(data) - 1)]
 
 
-def step10_abs(data):
-    """Absolute value of every element."""
+def step_abs(data):
     return [abs(x) for x in data]
 
 
-def step11_square(data):
-    """Square every element."""
+def step_square(data):
     return [x * x for x in data]
 
 
-def step12_normalize_minmax(data):
-    """Min-max normalization to [0, 1]."""
+def step_normalize_minmax(data):
     mn = min(data)
     mx = max(data)
-    if mx == mn:
+    if mn == mx:
         return [0.0] * len(data)
     return [(x - mn) / (mx - mn) for x in data]
 
 
-def step13_scale(data):
-    """Multiply every element by 1000."""
-    return [x * 1000.0 for x in data]
+def step_scale(data):
+    return [x * 1000 for x in data]
 
 
-def step14_round3(data):
-    """Round every element to 3 decimal places."""
+def step_round3(data):
     return [round(x, 3) for x in data]
 
 
-def step15_moving_avg_3(data):
-    """Trailing 3-element moving average with boundary handling."""
-    n = len(data)
+def step_moving_avg_3(data):
     result = []
-    for k in range(n):
+    for k, x in enumerate(data):
         if k == 0:
             result.append(data[0])
         elif k == 1:
@@ -123,19 +92,17 @@ def step15_moving_avg_3(data):
     return result
 
 
-def step16_filter_gt_mean(data):
-    """Keep only elements strictly greater than the arithmetic mean."""
-    mean = sum(data) / len(data)
-    return [x for x in data if x > mean]
+def step_filter_gt_mean(data):
+    # Compute mean over full list first, then filter
+    m = sum(data) / len(data)
+    return [x for x in data if x > m]
 
 
-def step17_sort_desc(data):
-    """Sort in descending order."""
+def step_sort_desc(data):
     return sorted(data, reverse=True)
 
 
-def step18_dedupe(data):
-    """Remove duplicate values, keeping first occurrence in current order."""
+def step_dedupe(data):
     seen = set()
     result = []
     for x in data:
@@ -145,88 +112,65 @@ def step18_dedupe(data):
     return result
 
 
-def step19_top_k(data):
-    """Keep the first 5 elements (list already sorted descending)."""
+def step_top_k(data):
     return data[:5]
 
 
-def step20_aggregate(data):
-    """Compute summary statistics over the 5 values."""
+def step_aggregate(data):
     total = sum(data)
+    n = len(data)
     return {
         "sum": float(total),
-        "mean": float(total / len(data)),
+        "mean": float(total / n),
         "min": float(min(data)),
         "max": float(max(data)),
-        "count": 5,
+        "count": int(n),
     }
 
 
-STEP_FUNCS = {
-    1: step1_parse,
-    2: step2_add_const,
-    3: step3_double,
-    4: step4_mod,
-    5: step5_scale_by_index,
-    6: step6_cumsum,
-    7: step7_prefix_max,
-    8: step8_prefix_min,
-    9: step9_diffs,
-    10: step10_abs,
-    11: step11_square,
-    12: step12_normalize_minmax,
-    13: step13_scale,
-    14: step14_round3,
-    15: step15_moving_avg_3,
-    16: step16_filter_gt_mean,
-    17: step17_sort_desc,
-    18: step18_dedupe,
-    19: step19_top_k,
-    20: step20_aggregate,
+HANDLERS = {
+    1: lambda inp: step_parse(inp),
+    2: lambda inp: step_add_const(inp['data']),
+    3: lambda inp: step_double(inp['data']),
+    4: lambda inp: step_mod(inp['data']),
+    5: lambda inp: step_scale_by_index(inp['data']),
+    6: lambda inp: step_cumsum(inp['data']),
+    7: lambda inp: step_prefix_max(inp['data']),
+    8: lambda inp: step_prefix_min(inp['data']),
+    9: lambda inp: step_diffs(inp['data']),
+    10: lambda inp: step_abs(inp['data']),
+    11: lambda inp: step_square(inp['data']),
+    12: lambda inp: step_normalize_minmax(inp['data']),
+    13: lambda inp: step_scale(inp['data']),
+    14: lambda inp: step_round3(inp['data']),
+    15: lambda inp: step_moving_avg_3(inp['data']),
+    16: lambda inp: step_filter_gt_mean(inp['data']),
+    17: lambda inp: step_sort_desc(inp['data']),
+    18: lambda inp: step_dedupe(inp['data']),
+    19: lambda inp: step_top_k(inp['data']),
+    20: lambda inp: step_aggregate(inp['data']),
 }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Mega ETL pipeline step executor")
-    parser.add_argument("--step", type=int, required=True, help="Step number (1-20)")
-    parser.add_argument("--in", dest="in_path", required=True, help="Input JSON path")
-    parser.add_argument("--out", dest="out_path", required=True, help="Output JSON path")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--step', type=int, required=True)
+    parser.add_argument('--in', dest='input', required=True)
+    parser.add_argument('--out', required=True)
     args = parser.parse_args()
 
-    step = args.step
-    in_path = args.in_path
-    out_path = args.out_path
+    # Read raw bytes for provenance BEFORE any JSON parsing
+    raw = open(args.input, 'rb').read()
+    prov = hashlib.sha256(raw).hexdigest()
+    inp = json.loads(raw)
 
-    # Compute provenance BEFORE reading/parsing
-    provenance = compute_provenance(in_path)
+    handler = HANDLERS[args.step]
+    result = handler(inp)
 
-    # Read and parse input
-    with open(in_path, 'r', encoding='utf-8') as f:
-        payload = json.load(f)
-
-    # Step 1 reads 'values' key directly from payload
-    # Steps 2-20 read 'data' key from payload
-    if step == 1:
-        input_data = payload
-    else:
-        input_data = payload["data"]
-
-    if step not in STEP_FUNCS:
-        print(f"Unknown step: {step}", file=sys.stderr)
-        sys.exit(1)
-
-    result = STEP_FUNCS[step](input_data)
-
-    output = {
-        "step": step,
-        "data": result,
-        "provenance": provenance,
-    }
-
-    output_str = json.dumps(output)
-    with open(out_path, 'w', encoding='utf-8') as f:
-        f.write(output_str)
+    output = {"step": args.step, "data": result, "provenance": prov}
+    with open(args.out, 'w') as f:
+        json.dump(output, f)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

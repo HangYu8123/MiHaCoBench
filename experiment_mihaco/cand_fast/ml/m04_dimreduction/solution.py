@@ -4,41 +4,36 @@ from sklearn.decomposition import PCA
 
 def reduce(X: np.ndarray, variance: float = 0.95) -> tuple[np.ndarray, int]:
     """
-    Reduce dimensionality of X using PCA to capture at least `variance`
-    cumulative explained variance ratio.
+    Reduce dimensionality of X using PCA, retaining at least `variance`
+    fraction of cumulative explained variance.
 
     Parameters
     ----------
-    X : np.ndarray of shape (n_samples, 64)
-        Raw digit features from load_digits().
+    X : np.ndarray of shape (n_samples, n_features)
+        Raw input features.
     variance : float in (0, 1], default 0.95
-        Minimum cumulative explained variance ratio to capture.
+        Minimum cumulative explained variance ratio to retain.
 
     Returns
     -------
     X_reduced : np.ndarray of shape (n_samples, n_components)
-        X projected onto the selected principal components.
+        X projected onto the first n_components principal components.
     n_components : int
-        Minimum number of PCA components whose cumulative explained variance
-        ratio is >= variance.
+        The minimum number of PCA components whose cumulative explained
+        variance ratio >= variance.
     """
-    # Fit PCA on all features (up to min(n_samples, n_features) components)
-    pca = PCA(random_state=0)
-    pca.fit(X)
+    pca = PCA(n_components=None, svd_solver='full', random_state=0)
+    X_transformed = pca.fit_transform(X)
 
-    # Compute cumulative explained variance ratio
     cumsum = np.cumsum(pca.explained_variance_ratio_)
 
-    # Find the minimum number of components to reach the target variance
-    # np.argmax returns the first index where condition is True (0-based)
-    # Add 1 to convert to component count
-    n_components = int(np.argmax(cumsum >= variance) + 1)
+    # Find minimum k such that cumsum[k-1] >= variance.
+    # np.argmax returns first True index (0-based); +1 converts to count.
+    # Edge case: variance=1.0 — float precision may mean cumsum never reaches
+    # exactly 1.0, making mask all-False and argmax returning 0 incorrectly.
+    # The `else len(cumsum)` branch handles this by returning all components.
+    mask = cumsum >= variance
+    k = int(np.argmax(mask)) + 1 if mask.any() else len(cumsum)
 
-    # Clamp to valid range (handles edge cases like variance=1.0)
-    n_components = min(n_components, X.shape[1])
-
-    # Project X onto the selected components
-    X_transformed = pca.transform(X)
-    X_reduced = X_transformed[:, :n_components]
-
-    return X_reduced, n_components
+    X_reduced = X_transformed[:, :k]
+    return (X_reduced, int(k))

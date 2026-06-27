@@ -1,87 +1,79 @@
 """
-graph.py — Dependency graph wrapper using networkx DiGraph.
+graph.py — networkx DiGraph wrapper for dependency tracking.
 
-Edge direction: dep -> name
-  meaning: "dep is a dependency of name" / "name depends on dep"
-  so descendants(G, changed_node) gives all nodes that depend on changed_node.
+Edge convention: dep -> cell  (meaning: cell depends on dep).
+So nx.descendants(G, name) returns all cells that (transitively) depend on name.
 """
-
 import networkx as nx
 
 
-class Graph:
-    """Wraps a networkx DiGraph for dependency tracking."""
+class DependencyGraph:
+    """Wraps a networkx DiGraph to track cell dependencies."""
 
     def __init__(self):
         self._g = nx.DiGraph()
 
+    # ------------------------------------------------------------------
+    # Public API used by engine.py
+    # ------------------------------------------------------------------
+
     def ensure_node(self, name):
-        """Ensure a node exists in the graph."""
+        """Make sure the node exists in the graph (no-op if already present)."""
         if name not in self._g:
             self._g.add_node(name)
 
-    def remove_outgoing_edges(self, name):
+    def add_or_update_formula(self, name, deps):
         """
-        Remove all outgoing edges FROM name.
-        Since edges go dep -> dependent, outgoing edges from `name` mean
-        `name` is a dependency of something.
-        But here we use this to remove edges where `name` is the dependent,
-        i.e., remove all edges where `name` is the *target*.
+        Re-point the incoming edges of *name* to *deps*.
 
-        Wait — we need to be careful about direction:
-        - Edge direction: dep -> name (dep points to its dependent)
-        - So if `name` is a formula cell with deps [d1, d2],
-          there are edges d1 -> name and d2 -> name (incoming edges to name)
-        - We want to remove edges that represent `name`'s dependencies
-          i.e., remove all incoming edges to `name`
-        """
-        # Remove all incoming edges to `name` (its dependencies)
-        predecessors = list(self._g.predecessors(name))
-        for pred in predecessors:
-            self._g.remove_edge(pred, name)
+        Only removes/adds edges where *name* is the TARGET (i.e. name's own
+        formula dependencies). Outgoing edges (cells that depend on name) are
+        untouched.
 
-    def add_dependency_edges(self, name, deps):
+        Raises ValueError if the new edges would introduce a cycle.
+        On ValueError the graph is left exactly as it was before the call.
         """
-        Add edges dep -> name for each dep in deps.
-        This means `name` depends on `dep`.
-        """
+        # Snapshot: old formula deps (edges where name is the target)
+        old_edges = list(self._g.in_edges(name))
+
+        # Tentatively apply: remove old deps, add new deps
+        self._g.remove_edges_from(old_edges)
+        # Ensure all dep nodes exist
         for dep in deps:
-            self.ensure_node(dep)
-            self._g.add_edge(dep, name)
+            if dep not in self._g:
+                self._g.add_node(dep)
+        self._g.add_edges_from([(dep, name) for dep in deps])
 
-    def get_descendants(self, name):
+        # Cycle check
+        try:
+            nx.find_cycle(self._g)
+            # If we get here a cycle was detected — rollback and raise
+            self._g.remove_edges_from([(dep, name) for dep in deps])
+            self._g.add_edges_from(old_edges)
+            raise ValueError(
+                f"Setting formula for '{name}' would introduce a cycle."
+            )
+        except nx.exception.NetworkXNoCycle:
+            # No cycle — changes are committed
+            pass
+
+    def remove_formula_edges(self, name):
         """
-        Return all transitive dependents of `name`.
-        These are nodes reachable from `name` following directed edges
-        (dep -> dependent direction), so descendants are all cells
-        that (directly or transitively) depend on `name`.
+        Remove all incoming edges for *name* (i.e. its formula dependencies).
+        Used when a cell is redefined from formula to constant value.
+        Outgoing edges (downstream dependents) are preserved.
+        """
+        old_edges = list(self._g.in_edges(name))
+        self._g.remove_edges_from(old_edges)
+
+    def get_transitive_dependents(self, name):
+        """
+        Return the set of all cells that (transitively) depend on *name*.
+
+        With edges dep -> cell, nx.descendants follows directed edges forward,
+        returning all cells reachable from *name* — exactly the transitive
+        dependents.
         """
         if name not in self._g:
             return set()
         return nx.descendants(self._g, name)
-
-    def would_create_cycle(self, name, deps):
-        """
-        Check if adding edges dep -> name for each dep would create a cycle.
-        Returns True if a cycle would be created.
-        Uses a copy of the graph to avoid mutation.
-        """
-        g_copy = self._g.copy()
-        # Ensure the name node exists
-        if name not in g_copy:
-            g_copy.add_node(name)
-        # Add the new edges
-        for dep in deps:
-            if dep not in g_copy:
-                g_copy.add_node(dep)
-            g_copy.add_edge(dep, name)
-        # Check if still a DAG
-        return not nx.is_directed_acyclic_graph(g_copy)
-
-    def copy_graph_state(self):
-        """Return a copy of the current graph for snapshot/restore."""
-        return self._g.copy()
-
-    def restore_graph_state(self, snapshot):
-        """Restore graph to a previously saved snapshot."""
-        self._g = snapshot

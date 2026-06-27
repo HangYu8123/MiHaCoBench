@@ -1,16 +1,7 @@
-"""Binary classification solution for the breast cancer dataset.
-
-This module provides two public functions:
-  - train(X, y): fits a classifier and returns it.
-  - predict(model, X): returns integer class-label predictions.
-"""
-
-from __future__ import annotations
-
 import numpy as np
-from sklearn.pipeline import Pipeline
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
+from sklearn.pipeline import Pipeline
 
 
 def train(X: np.ndarray, y: np.ndarray) -> object:
@@ -28,12 +19,17 @@ def train(X: np.ndarray, y: np.ndarray) -> object:
     model : object
         A fitted estimator that exposes a `predict(X)` method.
     """
-    pipeline = Pipeline([
+    model = Pipeline([
         ("scaler", StandardScaler()),
-        ("clf", SVC(kernel="rbf", C=10.0, gamma="scale", random_state=42)),
+        ("clf", GradientBoostingClassifier(
+            n_estimators=200,
+            max_depth=3,
+            learning_rate=0.1,
+            random_state=42,
+        )),
     ])
-    pipeline.fit(X, y)
-    return pipeline
+    model.fit(X, y)
+    return model
 
 
 def predict(model: object, X: np.ndarray) -> np.ndarray:
@@ -51,4 +47,4 @@ def predict(model: object, X: np.ndarray) -> np.ndarray:
     predictions : numpy.ndarray of shape (n_samples,)
         Predicted integer class labels (0 or 1).
     """
-    return model.predict(X).astype(int)
+    return model.predict(X)

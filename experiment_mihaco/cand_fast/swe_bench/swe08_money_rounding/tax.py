@@ -1,9 +1,12 @@
 from decimal import Decimal
-from money import round_cents
+import money
 
 
 def line_tax(amount_cents: int, rate: float) -> int:
-    """Compute amount_cents * rate as an exact Decimal and return
-    money.round_cents(...) of it."""
+    """Compute amount_cents * rate as an exact Decimal and return rounded cents.
+
+    Uses Decimal arithmetic to avoid binary float precision issues.
+    The rate float is converted via str() to capture its decimal text value.
+    """
     exact = Decimal(amount_cents) * Decimal(str(rate))
-    return round_cents(exact)
+    return money.round_cents(exact)

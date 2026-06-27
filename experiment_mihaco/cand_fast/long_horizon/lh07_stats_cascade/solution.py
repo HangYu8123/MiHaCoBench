@@ -1,6 +1,8 @@
 """
-stats_cascade — 14-step numerical pipeline
-Each step reads the previous step's output JSON and writes its result.
+stats_cascade — 14-step numerical pipeline.
+
+Usage:
+    python solution.py --step <K> --in <input_json_path> --out <output_json_path>
 """
 
 import argparse
@@ -8,158 +10,164 @@ import hashlib
 import json
 
 
-def compute_provenance(in_path: str) -> str:
-    """Hash the exact bytes of the input file for provenance."""
-    with open(in_path, 'rb') as f:
-        return hashlib.sha256(f.read()).hexdigest()
+# ---------------------------------------------------------------------------
+# Step handlers
+# ---------------------------------------------------------------------------
 
-
-def step1_parse(in_data):
-    """Read 'values' key and cast each element to float."""
+def step_parse(in_path, in_data):
+    """Step 1: read 'values' from input and cast to float."""
     return [float(x) for x in in_data["values"]]
 
 
-def step2_double(in_data):
-    """Multiply every element by 2."""
-    lst = in_data["data"]
-    return [x * 2 for x in lst]
+def step_double(in_path, in_data):
+    """Step 2: multiply every element by 2."""
+    data = in_data["data"]
+    return [x * 2 for x in data]
 
 
-def step3_square(in_data):
-    """Raise every element to the power of 2."""
-    lst = in_data["data"]
-    return [x * x for x in lst]
+def step_square(in_path, in_data):
+    """Step 3: raise every element to the power of 2."""
+    data = in_data["data"]
+    return [x * x for x in data]
 
 
-def step4_normalize_minmax(in_data):
-    """Apply min-max normalization."""
-    lst = in_data["data"]
-    mn = min(lst)
-    mx = max(lst)
-    return [(x - mn) / (mx - mn) for x in lst]
+def step_normalize_minmax(in_path, in_data):
+    """Step 4: min-max normalization."""
+    data = in_data["data"]
+    mn = min(data)
+    mx = max(data)
+    if mx == mn:
+        return [0.0] * len(data)
+    return [(x - mn) / (mx - mn) for x in data]
 
 
-def step5_scale(in_data):
-    """Multiply every element by 50."""
-    lst = in_data["data"]
-    return [x * 50 for x in lst]
+def step_scale(in_path, in_data):
+    """Step 5: multiply every element by 50."""
+    data = in_data["data"]
+    return [x * 50 for x in data]
 
 
-def step6_round3(in_data):
-    """Round every element to 3 decimal places using Python's built-in round()."""
-    lst = in_data["data"]
-    return [round(x, 3) for x in lst]
+def step_round3(in_path, in_data):
+    """Step 6: round every element to 3 decimal places."""
+    data = in_data["data"]
+    return [round(x, 3) for x in data]
 
 
-def step7_moving_avg_3(in_data):
-    """Apply a 3-element moving average with variable window at boundaries."""
-    lst = in_data["data"]
+def step_moving_avg_3(in_path, in_data):
+    """Step 7: 3-element moving average."""
+    data = in_data["data"]
     result = []
-    for i in range(len(lst)):
-        window = lst[max(0, i - 2):i + 1]
+    for i in range(len(data)):
+        window = data[max(0, i - 2): i + 1]
         result.append(sum(window) / len(window))
     return result
 
 
-def step8_cumsum(in_data):
-    """Compute running cumulative sum."""
-    lst = in_data["data"]
-    result = []
-    total = 0.0
-    for x in lst:
-        total += x
-        result.append(total)
-    return result
+def step_cumsum(in_path, in_data):
+    """Step 8: cumulative sum."""
+    data = in_data["data"]
+    running = 0.0
+    out = []
+    for x in data:
+        running += x
+        out.append(running)
+    return out
 
 
-def step9_diffs(in_data):
-    """Compute consecutive differences; result is one shorter."""
-    lst = in_data["data"]
-    return [lst[i + 1] - lst[i] for i in range(len(lst) - 1)]
+def step_diffs(in_path, in_data):
+    """Step 9: consecutive differences (length - 1 elements)."""
+    data = in_data["data"]
+    return [data[i + 1] - data[i] for i in range(len(data) - 1)]
 
 
-def step10_prefix_min(in_data):
-    """Compute running prefix minimum."""
-    lst = in_data["data"]
-    result = []
-    cur = lst[0]
-    result.append(cur)
-    for x in lst[1:]:
+def step_prefix_min(in_path, in_data):
+    """Step 10: running prefix minimum."""
+    data = in_data["data"]
+    cur = data[0]
+    out = [cur]
+    for x in data[1:]:
         cur = min(cur, x)
-        result.append(cur)
-    return result
+        out.append(cur)
+    return out
 
 
-def step11_abs(in_data):
-    """Take the absolute value of every element."""
-    lst = in_data["data"]
-    return [abs(x) for x in lst]
+def step_abs(in_path, in_data):
+    """Step 11: absolute value of every element."""
+    data = in_data["data"]
+    return [abs(x) for x in data]
 
 
-def step12_sort_desc(in_data):
-    """Sort the list in descending order."""
-    lst = in_data["data"]
-    return sorted(lst, reverse=True)
+def step_sort_desc(in_path, in_data):
+    """Step 12: sort in descending order."""
+    data = in_data["data"]
+    return sorted(data, reverse=True)
 
 
-def step13_top_k(in_data):
-    """Keep only the first 8 elements (top-8 largest from sorted desc list)."""
-    lst = in_data["data"]
-    return lst[:8]
+def step_top_k(in_path, in_data):
+    """Step 13: keep first 8 elements."""
+    data = in_data["data"]
+    return data[:8]
 
 
-def step14_aggregate(in_data):
-    """Compute summary statistics over the 8-element list."""
-    lst = in_data["data"]
-    n = len(lst)
-    s = sum(lst)
+def step_aggregate(in_path, in_data):
+    """Step 14: compute summary statistics."""
+    data = in_data["data"]
+    n = len(data)
+    total = sum(data)
     return {
-        "sum": s,
-        "mean": s / n,
-        "min": min(lst),
-        "max": max(lst),
+        "sum": total,
+        "mean": total / n,
+        "min": min(data),
+        "max": max(data),
         "count": int(n),
     }
 
 
-STEP_FUNCTIONS = {
-    1: step1_parse,
-    2: step2_double,
-    3: step3_square,
-    4: step4_normalize_minmax,
-    5: step5_scale,
-    6: step6_round3,
-    7: step7_moving_avg_3,
-    8: step8_cumsum,
-    9: step9_diffs,
-    10: step10_prefix_min,
-    11: step11_abs,
-    12: step12_sort_desc,
-    13: step13_top_k,
-    14: step14_aggregate,
+# ---------------------------------------------------------------------------
+# Dispatch table
+# ---------------------------------------------------------------------------
+
+STEPS = {
+    1: step_parse,
+    2: step_double,
+    3: step_square,
+    4: step_normalize_minmax,
+    5: step_scale,
+    6: step_round3,
+    7: step_moving_avg_3,
+    8: step_cumsum,
+    9: step_diffs,
+    10: step_prefix_min,
+    11: step_abs,
+    12: step_sort_desc,
+    13: step_top_k,
+    14: step_aggregate,
 }
 
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="stats_cascade pipeline step")
     parser.add_argument("--step", type=int, required=True, help="Step number (1-14)")
     parser.add_argument("--in", dest="in_path", required=True, help="Input JSON file path")
-    parser.add_argument("--out", dest="out_path", required=True, help="Output JSON file path")
+    parser.add_argument("--out", required=True, help="Output JSON file path")
     args = parser.parse_args()
 
-    # Compute provenance from raw bytes BEFORE parsing
-    provenance = compute_provenance(args.in_path)
+    # Read raw bytes for provenance hash BEFORE parsing JSON
+    with open(args.in_path, "rb") as f:
+        raw_bytes = f.read()
 
-    # Parse the input JSON
-    with open(args.in_path, 'r') as f:
-        in_data = json.load(f)
+    provenance = hashlib.sha256(raw_bytes).hexdigest()
 
-    # Dispatch to the correct step function
-    step_fn = STEP_FUNCTIONS.get(args.step)
-    if step_fn is None:
-        raise ValueError(f"Unknown step: {args.step}")
+    # Parse JSON
+    in_data = json.loads(raw_bytes)
 
-    result = step_fn(in_data)
+    # Dispatch to the appropriate step handler
+    handler = STEPS[args.step]
+    result = handler(args.in_path, in_data)
 
     # Write output
     output = {
@@ -168,7 +176,7 @@ def main():
         "provenance": provenance,
     }
 
-    with open(args.out_path, 'w') as f:
+    with open(args.out, "w") as f:
         json.dump(output, f)
 
 

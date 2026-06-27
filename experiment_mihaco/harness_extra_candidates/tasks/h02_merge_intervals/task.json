@@ -1,0 +1,12 @@
+{
+  "id": "h02_merge_intervals",
+  "category": "harness",
+  "title": "Coalesce Half-Open Intervals",
+  "weight": 4,
+  "packages": [],
+  "entrypoints": {"module": "solution.py", "callables": ["merge"], "cli": false},
+  "grader": "grader/test_h02.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-18"
+}

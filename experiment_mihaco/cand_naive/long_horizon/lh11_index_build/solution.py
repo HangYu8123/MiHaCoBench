@@ -14,70 +14,89 @@ import sys
 
 
 def compute_provenance(in_path: str) -> str:
-    """Compute SHA-256 hex digest of the input file bytes."""
-    with open(in_path, "rb") as f:
+    with open(in_path, 'rb') as f:
         return hashlib.sha256(f.read()).hexdigest()
 
 
 def write_output(out_path: str, step: int, data, provenance: str):
-    """Write the standard output JSON."""
     result = {"step": step, "data": data, "provenance": provenance}
-    with open(out_path, "w") as f:
+    with open(out_path, 'w') as f:
         json.dump(result, f)
 
 
-def tokenize(text: str):
-    """Lowercase and split on runs of non-alphanumeric characters."""
-    lowered = text.lower()
-    tokens = re.split(r"[^a-z0-9]+", lowered)
-    # Drop empty fragments
-    return [t for t in tokens if t]
+# ─── Step 1: tokenize ────────────────────────────────────────────────────────
 
+def step1_tokenize(in_path: str, out_path: str):
+    provenance = compute_provenance(in_path)
+    with open(in_path) as f:
+        corpus = json.load(f)
 
-def step1_tokenize(in_data: dict) -> dict:
-    """Step 1: tokenize each doc's text."""
-    docs = in_data["docs"]
+    docs = corpus["docs"]
     tokens = {}
     for doc in docs:
         doc_id = doc["id"]
-        text = doc["text"]
-        tokens[doc_id] = tokenize(text)
-    return {"tokens": tokens}
+        text = doc["text"].lower()
+        toks = re.split(r'[^a-z0-9]+', text)
+        toks = [t for t in toks if t]
+        tokens[doc_id] = toks
+
+    data = {"tokens": tokens}
+    write_output(out_path, 1, data, provenance)
 
 
-def step2_term_counts(in_data: dict) -> dict:
-    """Step 2: compute term counts per document."""
-    tokens = in_data["tokens"]
+# ─── Step 2: term_counts ─────────────────────────────────────────────────────
+
+def step2_term_counts(in_path: str, out_path: str):
+    provenance = compute_provenance(in_path)
+    with open(in_path) as f:
+        prev = json.load(f)
+
+    tokens = prev["data"]["tokens"]
     counts = {}
     for doc_id, toks in tokens.items():
         term_count = {}
-        for tok in toks:
-            term_count[tok] = term_count.get(tok, 0) + 1
+        for t in toks:
+            term_count[t] = term_count.get(t, 0) + 1
         counts[doc_id] = term_count
-    return {"counts": counts}
+
+    data = {"counts": counts}
+    write_output(out_path, 2, data, provenance)
 
 
-def step3_doc_frequency(in_data: dict) -> dict:
-    """Step 3: compute document frequency for each term."""
-    counts = in_data["counts"]
+# ─── Step 3: doc_frequency ───────────────────────────────────────────────────
+
+def step3_doc_frequency(in_path: str, out_path: str):
+    provenance = compute_provenance(in_path)
+    with open(in_path) as f:
+        prev = json.load(f)
+
+    counts = prev["data"]["counts"]
     n_docs = len(counts)
     df = {}
     for doc_id, term_count in counts.items():
         for term in term_count:
             df[term] = df.get(term, 0) + 1
-    return {"df": df, "counts": counts, "n_docs": n_docs}
+
+    data = {"df": df, "counts": counts, "n_docs": n_docs}
+    write_output(out_path, 3, data, provenance)
 
 
-def step4_tfidf(in_data: dict) -> dict:
-    """Step 4: compute TF-IDF weights."""
-    df = in_data["df"]
-    counts = in_data["counts"]
-    n_docs = in_data["n_docs"]
+# ─── Step 4: tfidf ───────────────────────────────────────────────────────────
 
-    # Compute IDF for each term: log(N / df[term]), natural log
+def step4_tfidf(in_path: str, out_path: str):
+    provenance = compute_provenance(in_path)
+    with open(in_path) as f:
+        prev = json.load(f)
+
+    df = prev["data"]["df"]
+    counts = prev["data"]["counts"]
+    n_docs = prev["data"]["n_docs"]
+    N = n_docs
+
+    # Compute IDF for each term (natural log), rounded to 6 decimals
     idf = {}
-    for term, df_count in df.items():
-        idf[term] = round(math.log(n_docs / df_count), 6)
+    for term, df_val in df.items():
+        idf[term] = round(math.log(N / df_val), 6)
 
     # Compute TF-IDF for each doc
     tfidf = {}
@@ -86,106 +105,100 @@ def step4_tfidf(in_data: dict) -> dict:
         doc_tfidf = {}
         for term, count in term_count.items():
             tf = count / total_terms
-            weight = tf * idf[term]
-            doc_tfidf[term] = round(weight, 6)
+            weight = round(tf * idf[term], 6)
+            doc_tfidf[term] = weight
         tfidf[doc_id] = doc_tfidf
 
-    return {"tfidf": tfidf, "idf": idf}
+    data = {"tfidf": tfidf, "idf": idf}
+    write_output(out_path, 4, data, provenance)
 
 
-def cosine_similarity(vec_a: dict, vec_b: dict) -> float:
-    """Compute cosine similarity between two sparse vectors."""
-    # Dot product
-    dot = 0.0
-    for term, weight in vec_a.items():
-        if term in vec_b:
-            dot += weight * vec_b[term]
+# ─── Step 5: rank_query ──────────────────────────────────────────────────────
 
-    # Norms
-    norm_a = math.sqrt(sum(w * w for w in vec_a.values()))
-    norm_b = math.sqrt(sum(w * w for w in vec_b.values()))
+def step5_rank_query(in_path: str, out_path: str):
+    provenance = compute_provenance(in_path)
+    with open(in_path) as f:
+        prev = json.load(f)
 
-    if norm_a == 0.0 or norm_b == 0.0:
-        return 0.0
+    tfidf = prev["data"]["tfidf"]
+    idf = prev["data"]["idf"]
 
-    return dot / (norm_a * norm_b)
-
-
-def step5_rank_query(in_data: dict) -> list:
-    """Step 5: rank documents by cosine similarity with the fixed query."""
     QUERY = ["alpha", "beta"]
 
-    tfidf = in_data["tfidf"]
-    idf = in_data["idf"]
-
-    # Build query vector: query term tf = 1, weighted by corpus idf
+    # Build query vector: tf=1 for each query term, weighted by idf
     query_vec = {}
     for term in QUERY:
         if term in idf:
-            query_vec[term] = idf[term]
+            query_vec[term] = 1 * idf[term]
 
-    # Score each doc
-    scores = []
+    # Compute query norm
+    query_norm = math.sqrt(sum(v * v for v in query_vec.values()))
+
+    results = []
     for doc_id, doc_vec in tfidf.items():
-        score = cosine_similarity(query_vec, doc_vec)
-        scores.append([doc_id, round(score, 6)])
+        if not doc_vec or query_norm == 0.0:
+            score = 0.0
+        else:
+            # dot product
+            dot = 0.0
+            for term, qw in query_vec.items():
+                dot += qw * doc_vec.get(term, 0.0)
+            doc_norm = math.sqrt(sum(v * v for v in doc_vec.values()))
+            if doc_norm == 0.0:
+                score = 0.0
+            else:
+                score = dot / (query_norm * doc_norm)
+        results.append([doc_id, round(score, 6)])
 
-    # Sort by descending score, ties broken by ascending doc_id
-    scores.sort(key=lambda x: (-x[1], x[0]))
+    # Sort by descending score, ties by ascending doc_id
+    results.sort(key=lambda x: (-x[1], x[0]))
 
-    return scores
+    data = results
+    write_output(out_path, 5, data, provenance)
 
 
-def step6_top_k(in_data: list) -> dict:
-    """Step 6: take the top 3 entries from the ranking."""
-    top3 = in_data[:3]
+# ─── Step 6: top_k ───────────────────────────────────────────────────────────
+
+def step6_top_k(in_path: str, out_path: str):
+    provenance = compute_provenance(in_path)
+    with open(in_path) as f:
+        prev = json.load(f)
+
+    ranking = prev["data"]
+    top3 = ranking[:3]
+
     top_ids = [entry[0] for entry in top3]
     top_scores = [entry[1] for entry in top3]
-    return {"top": top_ids, "scores": top_scores}
 
+    data = {"top": top_ids, "scores": top_scores}
+    write_output(out_path, 6, data, provenance)
+
+
+# ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--step", type=int, required=True)
-    parser.add_argument("--in", dest="in_path", required=True)
-    parser.add_argument("--out", dest="out_path", required=True)
+    parser.add_argument('--step', type=int, required=True)
+    parser.add_argument('--in', dest='in_path', required=True)
+    parser.add_argument('--out', dest='out_path', required=True)
     args = parser.parse_args()
 
-    step = args.step
-    in_path = args.in_path
-    out_path = args.out_path
+    dispatch = {
+        1: step1_tokenize,
+        2: step2_term_counts,
+        3: step3_doc_frequency,
+        4: step4_tfidf,
+        5: step5_rank_query,
+        6: step6_top_k,
+    }
 
-    # Compute provenance before reading JSON
-    provenance = compute_provenance(in_path)
-
-    with open(in_path, "r") as f:
-        in_json = json.load(f)
-
-    # Step 1 reads from the raw docs JSON (has "docs" key)
-    # Steps 2-6 read from the previous step's output (has "data" key)
-    if step == 1:
-        in_data = in_json
-    else:
-        in_data = in_json["data"]
-
-    if step == 1:
-        result = step1_tokenize(in_data)
-    elif step == 2:
-        result = step2_term_counts(in_data)
-    elif step == 3:
-        result = step3_doc_frequency(in_data)
-    elif step == 4:
-        result = step4_tfidf(in_data)
-    elif step == 5:
-        result = step5_rank_query(in_data)
-    elif step == 6:
-        result = step6_top_k(in_data)
-    else:
-        print(f"Unknown step: {step}", file=sys.stderr)
+    fn = dispatch.get(args.step)
+    if fn is None:
+        print(f"Unknown step: {args.step}", file=sys.stderr)
         sys.exit(1)
 
-    write_output(out_path, step, result, provenance)
+    fn(args.in_path, args.out_path)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

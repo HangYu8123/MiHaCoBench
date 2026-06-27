@@ -1,64 +1,61 @@
-"""
-lexer.py — Tokenizer for the spreadsheet formula language.
-
-Tokens produced:
-  ('NUMBER', float)
-  ('STRING', str)          # double-quoted string literal, quotes stripped
-  ('RANGE', str)           # e.g. 'A1:B3'
-  ('CELL', str)            # e.g. 'A1'
-  ('FUNC', str)            # IF, SUM, AVG, MIN, MAX
-  ('OP', str)              # + - * / ^ ( ) , < <= > >= = <>
-"""
+"""Lexer for the spreadsheet formula language."""
 
 import re
+from dataclasses import dataclass
+from typing import List
 
-# Ordered list of (token_type, compiled_regex) pairs.
-# Longer / more-specific patterns come first so they match preferentially.
+
+@dataclass
+class Token:
+    type: str
+    value: str
+
+
+# Token types
+TT_NUMBER = 'NUMBER'
+TT_STRING = 'STRING'
+TT_RANGE = 'RANGE'
+TT_IDENT = 'IDENT'
+TT_OP = 'OP'
+TT_COMPARE = 'COMPARE'
+TT_LPAREN = 'LPAREN'
+TT_RPAREN = 'RPAREN'
+TT_COMMA = 'COMMA'
+TT_EOF = 'EOF'
+
+# Regex patterns — order matters: longer/more-specific first
 _TOKEN_PATTERNS = [
-    ('SKIP',   re.compile(r'\s+')),
-    ('NUMBER', re.compile(r'\d+(?:\.\d*)?(?:[eE][+-]?\d+)?')),
-    ('STRING', re.compile(r'"[^"]*"')),
-    # RANGE must come before CELL so A1:B3 is one token
-    ('RANGE',  re.compile(r'[A-Z]+[0-9]+:[A-Z]+[0-9]+')),
-    ('CELL',   re.compile(r'[A-Z]+[0-9]+')),
-    ('FUNC',   re.compile(r'(?:IF|SUM|AVG|MIN|MAX)(?=\()')),
-    ('OP',     re.compile(r'<>|<=|>=|[+\-*/^(),<>=]')),
+    (TT_RANGE,   r'[A-Z]+\d+:[A-Z]+\d+'),
+    (TT_NUMBER,  r'\d+(?:\.\d+)?'),
+    (TT_STRING,  r'"[^"]*"'),
+    (TT_IDENT,   r'[A-Z]+\d+|[A-Za-z_][A-Za-z0-9_]*'),
+    (TT_COMPARE, r'<>|<=|>=|<|>|='),
+    (TT_OP,      r'[+\-*/^]'),
+    (TT_LPAREN,  r'\('),
+    (TT_RPAREN,  r'\)'),
+    (TT_COMMA,   r','),
 ]
 
+_MASTER_RE = re.compile(
+    '|'.join(f'(?P<{name}>{pat})' for name, pat in _TOKEN_PATTERNS)
+)
 
-def tokenize(formula: str) -> list:
-    """
-    Tokenize *formula* (the part after the leading '=').
 
-    Returns a list of (type, value) tuples.
-    Raises ValueError on unrecognised input.
-    """
-    tokens = []
+def lex(formula: str) -> List[Token]:
+    """Tokenize a formula string (without the leading '=')."""
+    tokens: List[Token] = []
     pos = 0
-    length = len(formula)
-    while pos < length:
-        matched = False
-        for tok_type, pattern in _TOKEN_PATTERNS:
-            m = pattern.match(formula, pos)
-            if m:
-                text = m.group(0)
-                if tok_type == 'SKIP':
-                    pass  # whitespace — discard
-                elif tok_type == 'NUMBER':
-                    tokens.append(('NUMBER', float(text)))
-                elif tok_type == 'STRING':
-                    tokens.append(('STRING', text[1:-1]))  # strip quotes
-                elif tok_type == 'RANGE':
-                    tokens.append(('RANGE', text))
-                elif tok_type == 'CELL':
-                    tokens.append(('CELL', text))
-                elif tok_type == 'FUNC':
-                    tokens.append(('FUNC', text))
-                elif tok_type == 'OP':
-                    tokens.append(('OP', text))
-                pos = m.end()
-                matched = True
-                break
-        if not matched:
-            raise ValueError(f"Unexpected character at position {pos}: {formula[pos]!r}")
+    s = formula.strip()
+    while pos < len(s):
+        if s[pos] == ' ':
+            pos += 1
+            continue
+        m = _MASTER_RE.match(s, pos)
+        if m is None:
+            raise SyntaxError(f"Unexpected character {s[pos]!r} at position {pos}")
+        ttype = m.lastgroup
+        tvalue = m.group()
+        tokens.append(Token(ttype, tvalue))
+        pos = m.end()
+    tokens.append(Token(TT_EOF, ''))
     return tokens

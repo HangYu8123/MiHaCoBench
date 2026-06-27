@@ -16,6 +16,7 @@ class ExtractConfig:
 
 @dataclass
 class FilterConfig:
+    op: str  # "filter"
     column: str
     op_kind: str
     value: Any
@@ -23,22 +24,22 @@ class FilterConfig:
 
 @dataclass
 class RenameConfig:
+    op: str  # "rename"
     mapping: dict[str, str]
 
 
 @dataclass
 class DeriveConfig:
+    op: str  # "derive"
     column: str
     expr: str
 
 
 @dataclass
 class AggregateConfig:
+    op: str  # "aggregate"
     group_by: list[str]
     agg: dict[str, str]
-
-
-TransformConfig = FilterConfig | RenameConfig | DeriveConfig | AggregateConfig
 
 
 @dataclass
@@ -49,43 +50,52 @@ class LoadConfig:
 @dataclass
 class PipelineConfig:
     extract: ExtractConfig
-    transforms: list[TransformConfig] = field(default_factory=list)
-    load: LoadConfig = None
+    transforms: list[Any]
+    load: LoadConfig
 
 
 def parse_yaml(yaml_text: str, data_dir: str | None = None) -> PipelineConfig:
     """Parse YAML text into a PipelineConfig dataclass."""
-    spec = yaml.safe_load(yaml_text)
+    raw = yaml.safe_load(yaml_text)
 
     # Parse extract
-    csv_path = spec["extract"]["csv"]
+    csv_path = raw["extract"]["csv"]
     if data_dir is not None and not os.path.isabs(csv_path):
         csv_path = os.path.join(data_dir, csv_path)
     extract = ExtractConfig(csv=csv_path)
 
     # Parse transforms
     transforms = []
-    for t in spec.get("transforms", []):
+    for t in raw.get("transforms", []):
         op = t["op"]
         if op == "filter":
             transforms.append(FilterConfig(
+                op=op,
                 column=t["column"],
                 op_kind=t["op_kind"],
                 value=t["value"],
             ))
         elif op == "rename":
-            transforms.append(RenameConfig(mapping=dict(t["mapping"])))
+            transforms.append(RenameConfig(
+                op=op,
+                mapping=t["mapping"],
+            ))
         elif op == "derive":
-            transforms.append(DeriveConfig(column=t["column"], expr=t["expr"]))
+            transforms.append(DeriveConfig(
+                op=op,
+                column=t["column"],
+                expr=t["expr"],
+            ))
         elif op == "aggregate":
             transforms.append(AggregateConfig(
-                group_by=list(t["group_by"]),
-                agg=dict(t["agg"]),
+                op=op,
+                group_by=t["group_by"],
+                agg=t["agg"],
             ))
         else:
             raise ValueError(f"Unknown transform op: {op!r}")
 
     # Parse load
-    load = LoadConfig(table=spec["load"]["table"])
+    load = LoadConfig(table=raw["load"]["table"])
 
     return PipelineConfig(extract=extract, transforms=transforms, load=load)

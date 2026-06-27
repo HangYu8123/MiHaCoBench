@@ -1,0 +1,426 @@
+{
+  "1": {
+    "data": {
+      "budget": 100.0,
+      "remaining": 100.0,
+      "queue": [
+        {
+          "id": "r1",
+          "amount": 30.0
+        },
+        {
+          "id": "r2",
+          "amount": 25.0
+        },
+        {
+          "id": "r3",
+          "amount": 20.0
+        },
+        {
+          "id": "r4",
+          "amount": 15.0
+        },
+        {
+          "id": "r5",
+          "amount": 40.0
+        },
+        {
+          "id": "r6",
+          "amount": 10.0
+        },
+        {
+          "id": "r7",
+          "amount": 35.0
+        },
+        {
+          "id": "r8",
+          "amount": 5.0
+        }
+      ],
+      "committed": []
+    }
+  },
+  "2": {
+    "data": {
+      "budget": 100.0,
+      "remaining": 70.0,
+      "queue": [
+        {
+          "id": "r2",
+          "amount": 25.0
+        },
+        {
+          "id": "r3",
+          "amount": 20.0
+        },
+        {
+          "id": "r4",
+          "amount": 15.0
+        },
+        {
+          "id": "r5",
+          "amount": 40.0
+        },
+        {
+          "id": "r6",
+          "amount": 10.0
+        },
+        {
+          "id": "r7",
+          "amount": 35.0
+        },
+        {
+          "id": "r8",
+          "amount": 5.0
+        }
+      ],
+      "committed": [
+        {
+          "id": "r1",
+          "requested": 30.0,
+          "granted": 30.0
+        }
+      ]
+    }
+  },
+  "3": {
+    "data": {
+      "budget": 100.0,
+      "remaining": 45.0,
+      "queue": [
+        {
+          "id": "r3",
+          "amount": 20.0
+        },
+        {
+          "id": "r4",
+          "amount": 15.0
+        },
+        {
+          "id": "r5",
+          "amount": 40.0
+        },
+        {
+          "id": "r6",
+          "amount": 10.0
+        },
+        {
+          "id": "r7",
+          "amount": 35.0
+        },
+        {
+          "id": "r8",
+          "amount": 5.0
+        }
+      ],
+      "committed": [
+        {
+          "id": "r1",
+          "requested": 30.0,
+          "granted": 30.0
+        },
+        {
+          "id": "r2",
+          "requested": 25.0,
+          "granted": 25.0
+        }
+      ]
+    }
+  },
+  "4": {
+    "data": {
+      "budget": 100.0,
+      "remaining": 25.0,
+      "queue": [
+        {
+          "id": "r4",
+          "amount": 15.0
+        },
+        {
+          "id": "r5",
+          "amount": 40.0
+        },
+        {
+          "id": "r6",
+          "amount": 10.0
+        },
+        {
+          "id": "r7",
+          "amount": 35.0
+        },
+        {
+          "id": "r8",
+          "amount": 5.0
+        }
+      ],
+      "committed": [
+        {
+          "id": "r1",
+          "requested": 30.0,
+          "granted": 30.0
+        },
+        {
+          "id": "r2",
+          "requested": 25.0,
+          "granted": 25.0
+        },
+        {
+          "id": "r3",
+          "requested": 20.0,
+          "granted": 20.0
+        }
+      ]
+    }
+  },
+  "5": {
+    "data": {
+      "budget": 100.0,
+      "remaining": 10.0,
+      "queue": [
+        {
+          "id": "r5",
+          "amount": 40.0
+        },
+        {
+          "id": "r6",
+          "amount": 10.0
+        },
+        {
+          "id": "r7",
+          "amount": 35.0
+        },
+        {
+          "id": "r8",
+          "amount": 5.0
+        }
+      ],
+      "committed": [
+        {
+          "id": "r1",
+          "requested": 30.0,
+          "granted": 30.0
+        },
+        {
+          "id": "r2",
+          "requested": 25.0,
+          "granted": 25.0
+        },
+        {
+          "id": "r3",
+          "requested": 20.0,
+          "granted": 20.0
+        },
+        {
+          "id": "r4",
+          "requested": 15.0,
+          "granted": 15.0
+        }
+      ]
+    }
+  },
+  "6": {
+    "data": {
+      "budget": 100.0,
+      "remaining": 0.0,
+      "queue": [
+        {
+          "id": "r6",
+          "amount": 10.0
+        },
+        {
+          "id": "r7",
+          "amount": 35.0
+        },
+        {
+          "id": "r8",
+          "amount": 5.0
+        }
+      ],
+      "committed": [
+        {
+          "id": "r1",
+          "requested": 30.0,
+          "granted": 30.0
+        },
+        {
+          "id": "r2",
+          "requested": 25.0,
+          "granted": 25.0
+        },
+        {
+          "id": "r3",
+          "requested": 20.0,
+          "granted": 20.0
+        },
+        {
+          "id": "r4",
+          "requested": 15.0,
+          "granted": 15.0
+        },
+        {
+          "id": "r5",
+          "requested": 40.0,
+          "granted": 10.0
+        }
+      ]
+    }
+  },
+  "7": {
+    "data": {
+      "budget": 100.0,
+      "remaining": 0.0,
+      "queue": [
+        {
+          "id": "r7",
+          "amount": 35.0
+        },
+        {
+          "id": "r8",
+          "amount": 5.0
+        }
+      ],
+      "committed": [
+        {
+          "id": "r1",
+          "requested": 30.0,
+          "granted": 30.0
+        },
+        {
+          "id": "r2",
+          "requested": 25.0,
+          "granted": 25.0
+        },
+        {
+          "id": "r3",
+          "requested": 20.0,
+          "granted": 20.0
+        },
+        {
+          "id": "r4",
+          "requested": 15.0,
+          "granted": 15.0
+        },
+        {
+          "id": "r5",
+          "requested": 40.0,
+          "granted": 10.0
+        },
+        {
+          "id": "r6",
+          "requested": 10.0,
+          "granted": 0.0
+        }
+      ]
+    }
+  },
+  "8": {
+    "data": {
+      "budget": 100.0,
+      "remaining": 0.0,
+      "queue": [
+        {
+          "id": "r8",
+          "amount": 5.0
+        }
+      ],
+      "committed": [
+        {
+          "id": "r1",
+          "requested": 30.0,
+          "granted": 30.0
+        },
+        {
+          "id": "r2",
+          "requested": 25.0,
+          "granted": 25.0
+        },
+        {
+          "id": "r3",
+          "requested": 20.0,
+          "granted": 20.0
+        },
+        {
+          "id": "r4",
+          "requested": 15.0,
+          "granted": 15.0
+        },
+        {
+          "id": "r5",
+          "requested": 40.0,
+          "granted": 10.0
+        },
+        {
+          "id": "r6",
+          "requested": 10.0,
+          "granted": 0.0
+        },
+        {
+          "id": "r7",
+          "requested": 35.0,
+          "granted": 0.0
+        }
+      ]
+    }
+  },
+  "9": {
+    "data": {
+      "budget": 100.0,
+      "remaining": 0.0,
+      "queue": [],
+      "committed": [
+        {
+          "id": "r1",
+          "requested": 30.0,
+          "granted": 30.0
+        },
+        {
+          "id": "r2",
+          "requested": 25.0,
+          "granted": 25.0
+        },
+        {
+          "id": "r3",
+          "requested": 20.0,
+          "granted": 20.0
+        },
+        {
+          "id": "r4",
+          "requested": 15.0,
+          "granted": 15.0
+        },
+        {
+          "id": "r5",
+          "requested": 40.0,
+          "granted": 10.0
+        },
+        {
+          "id": "r6",
+          "requested": 10.0,
+          "granted": 0.0
+        },
+        {
+          "id": "r7",
+          "requested": 35.0,
+          "granted": 0.0
+        },
+        {
+          "id": "r8",
+          "requested": 5.0,
+          "granted": 0.0
+        }
+      ]
+    }
+  },
+  "10": {
+    "data": {
+      "budget": 100.0,
+      "total_granted": 100.0,
+      "remaining": 0.0,
+      "utilization": 1.0,
+      "fully_granted": 4,
+      "partial": 1,
+      "rejected": 3,
+      "reconciled": true
+    }
+  }
+}

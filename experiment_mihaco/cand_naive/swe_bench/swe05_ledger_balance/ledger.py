@@ -28,17 +28,17 @@ class Ledger:
         After validation, delegate to transactions.post_entries, which applies
         every entry to its account.
         """
-        # Validate balance: sum of all amounts must be exactly 0
+        # Validate all amounts sum to zero
         total = sum(amount for _, amount in entries)
         if total != 0:
             raise ValueError("entries must balance")
 
-        # Validate all accounts exist (raises KeyError if not)
+        # Validate all account names exist (raises KeyError if not)
         for name, _ in entries:
             if name not in self._accounts:
                 raise KeyError(name)
 
-        # Delegate to transactions module
+        # Delegate to post_entries
         post_entries(entries, self._accounts)
 
     def balance(self, name: str) -> int:

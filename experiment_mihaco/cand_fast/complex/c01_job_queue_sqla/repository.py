@@ -1,54 +1,29 @@
-"""Low-level database access helpers for the priority job queue.
+"""Engine and session factory helpers for the job queue."""
 
-This module provides:
-    make_engine   — create a SQLAlchemy engine and initialise the schema
-    make_session  — sessionmaker factory builder
+import sys
+import os
 
-Callers should import these helpers rather than constructing engine/session
-objects directly.
-"""
-from __future__ import annotations
+# Ensure the task directory is on sys.path for absolute-style imports
+_DIR = os.path.dirname(os.path.abspath(__file__))
+if _DIR not in sys.path:
+    sys.path.insert(0, _DIR)
 
-from sqlalchemy import Engine, create_engine
-from sqlalchemy.orm import Session, sessionmaker
-
+from sqlalchemy import create_engine as _create_engine
+from sqlalchemy.orm import Session
 from models import Base
 
 
-def make_engine(url: str = "sqlite:///:memory:") -> Engine:
-    """Create a SQLAlchemy engine and ensure all ORM tables exist.
-
-    Parameters
-    ----------
-    url:
-        SQLAlchemy database URL.  Defaults to an in-process SQLite database.
-
-    Returns
-    -------
-    Engine
-        A ready-to-use SQLAlchemy 2.0 :class:`Engine`.
-    """
-    engine = create_engine(url, echo=False)
-    Base.metadata.create_all(engine)
+def create_engine(url: str):
+    """Create and return a SQLAlchemy engine for the given URL."""
+    engine = _create_engine(url)
     return engine
 
 
-def make_session(engine: Engine) -> sessionmaker[Session]:
-    """Return a :class:`sessionmaker` factory bound to *engine*.
+def init_db(engine) -> None:
+    """Create all ORM tables against the given engine."""
+    Base.metadata.create_all(engine)
 
-    Parameters
-    ----------
-    engine:
-        An engine previously created by :func:`make_engine`.
 
-    Returns
-    -------
-    sessionmaker[Session]
-        A callable that produces :class:`Session` instances.  Typical usage::
-
-            Session = make_session(engine)
-            with Session() as session:
-                ...
-                session.commit()
-    """
-    return sessionmaker(bind=engine, expire_on_commit=False)
+def get_session(engine) -> Session:
+    """Return a new Session bound to engine (caller must use as context manager)."""
+    return Session(engine)

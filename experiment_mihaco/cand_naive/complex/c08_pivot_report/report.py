@@ -1,38 +1,28 @@
-"""report.py — Facade for the pivot_report task.
-
-Public contract:
-    from report import Report
-"""
+"""report.py — FACADE: class Report (imports build_frame from frame.py)."""
 
 import pandas as pd
 import numpy as np
 
-import frame as _frame
+import frame
 
 
 class Report:
-    """Reporting engine that wraps a pandas DataFrame."""
+    """Reporting engine built on top of pandas pivot tables."""
 
     def __init__(self, records: list[dict]):
-        """Build internal frame from records.
+        """Build the internal frame via frame.build_frame(records).
 
-        Raises ValueError if records is empty (propagated from build_frame).
+        Raises ValueError if records is empty.
         """
-        self._df = _frame.build_frame(records)
-
-    # ------------------------------------------------------------------
-    # Public methods
-    # ------------------------------------------------------------------
+        self._df = frame.build_frame(records)
 
     def pivot(self, index: str, columns: str, value: str, agg: str) -> pd.DataFrame:
-        """Return a pivot table with integer cells, NaN filled with 0.
+        """Return a pivot table of value aggregated by agg over index x columns.
 
-        Parameters
-        ----------
-        index   : column name to use as row labels
-        columns : column name to use as column labels
-        value   : column name to aggregate
-        agg     : "sum" or "count"
+        - agg is either "sum" or "count".
+        - Missing (index, column) combinations are filled with 0 (integer).
+        - All cells are integer dtype (no floats, no NaN).
+        - Columns are sorted ascending; index is sorted ascending.
         """
         result = pd.pivot_table(
             self._df,
@@ -42,67 +32,60 @@ class Report:
             aggfunc=agg,
             fill_value=0,
         )
-
-        # Ensure integer dtype (fill_value=0 keeps int when possible, but
-        # float can sneak in when the source column is float; force it).
-        result = result.fillna(0).astype(int)
-
-        # Sort both axes ascending.
+        # Sort index and columns ascending
         result = result.sort_index(axis=0).sort_index(axis=1)
-
-        # Remove the columns name attribute to produce a clean DataFrame.
-        result.columns.name = None
+        # Ensure integer dtype (fill_value=0 may still produce float if any NaN
+        # was present before filling)
+        result = result.astype(int)
+        # Remove the columns name label that pivot_table sets
+        result.columns.name = columns
         result.index.name = index
-
         return result
 
     def totals(self, index: str, columns: str, value: str, agg: str) -> pd.DataFrame:
-        """Return the pivot table with "Total" row and column appended."""
+        """Return pivot table plus row/column marginal sums labelled "Total".
+
+        - Extra row "Total": column-wise sums of the pivot data.
+        - Extra column "Total": row-wise sums of the pivot data.
+        - Bottom-right cell ("Total", "Total") is the grand total.
+        """
         base = self.pivot(index, columns, value, agg)
 
-        # Row marginal sums → "Total" column
-        base["Total"] = base.sum(axis=1)
+        # Compute row totals (sum across columns for each index row)
+        row_totals = base.sum(axis=1).astype(int)
 
-        # Column marginal sums → "Total" row
-        total_row = base.sum(axis=0)
-        total_row.name = "Total"
+        # Compute column totals (sum down rows for each column)
+        col_totals = base.sum(axis=0).astype(int)
 
-        result = pd.concat([base, total_row.to_frame().T])
+        # Grand total
+        grand_total = int(col_totals.sum())
 
-        # Ensure integer dtype throughout.
+        # Add "Total" column to base
+        result = base.copy()
+        result["Total"] = row_totals
+
+        # Build the "Total" row: col_totals + grand total
+        total_row = col_totals.to_frame().T
+        total_row.index = ["Total"]
+        total_row["Total"] = grand_total
+
+        # Concatenate
+        result = pd.concat([result, total_row])
+
+        # Ensure integer dtype throughout
         result = result.astype(int)
 
         return result
 
     def top_n(self, index: str, value: str, n: int) -> list[tuple]:
-        """Return the top-n groups by summed value.
+        """Return top n groups by summed value, descending; ties broken by label ascending.
 
-        Parameters
-        ----------
-        index : column to group by
-        value : column to sum
-        n     : maximum number of results to return
-
-        Returns
-        -------
-        List of (index_label, total) tuples sorted by total DESC,
-        then index_label ASC on ties.
+        Returns list of (index_label, total) tuples, at most n items.
         """
-        grouped = (
-            self._df
-            .groupby(index, sort=False)[value]
-            .sum()
-            .reset_index()
-        )
-        grouped.columns = ["_idx", "_val"]
-
-        # Sort: total descending, then label ascending for ties.
-        grouped = grouped.sort_values(
-            by=["_val", "_idx"],
-            ascending=[False, True],
-        )
-
-        return [
-            (row["_idx"], int(row["_val"]))
-            for _, row in grouped.head(n).iterrows()
-        ]
+        grouped = self._df.groupby(index)[value].sum()
+        # Sort: primary by value descending, secondary by label ascending
+        # pandas sort_values is stable; sort by index ascending first, then by value descending
+        grouped = grouped.sort_index(ascending=True)
+        grouped = grouped.sort_values(ascending=False, kind="mergesort")
+        top = grouped.head(n)
+        return [(label, int(total)) for label, total in top.items()]

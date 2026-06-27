@@ -31,6 +31,7 @@ tasks are weighted when aggregating:
 | swe_bench | 6 each |
 | compositional | 4 each |
 | competitive | 8 each |
+| harness *(experimental)* | 4–6 each (h04 = 4; h05–h08 = 6) |
 
 Adding the `swe_bench`, `compositional`, and `competitive` categories grows the
 weighted-score denominator, so a `weighted_partial` over the expanded suite is
@@ -44,6 +45,16 @@ demands an asymptotically-correct algorithm under a hard feasibility gate.
 `compositional` is weighted **4** — above `data_analysis` (3) for its mandatory
 multi-library composition and exhaustive exception-path coverage, below `complex`
 since each is a single function/module.
+
+`harness` *(experimental, 2026-06-18)* is weighted **4–6** (broad implementation
+features, weighted like `complex`/`swe_bench`). **Status:** authored to make a
+single, no-tools shot fail, but at the **Opus 4.8** tier naive single-pass scored a
+strict 100% on all five (fuzz-confirmed), so each is currently a guaranteed
+naive-vs-harness **tie** — i.e. **non-discriminating at Opus 4.8**, retained as a
+difficulty ceiling. To make them discriminate, run the naive arm with a weaker
+model. See `experiment_mihaco/results/HARNESS_CATEGORY.md`. Because these do not
+yet separate harnesses, **exclude the `harness` category** (`--category` filters, or
+omit it) when reporting a discrimination-focused `weighted_partial`.
 
 **Overall weighted score** = `Σ (weight · partial) / Σ weight`. The runner also
 reports raw `strict` counts per category so both views are visible.
@@ -278,3 +289,47 @@ _mutation_seed.py` (toolkit) and `experiment_mihaco/mutation_gen/gen_*.py`
 (per-task generators); citations to the originating external problems/bugs live in
 each `task.json` `source`/`oracle` field (hidden, not in `TASK.md`, to avoid
 adding contamination signal).
+
+## 8. Agentic over-engineering metrics (ponytail-aligned)
+
+Sections 1–7 score **correctness**. The separate agentic harness under
+`benchmarks/agentic/` (ported from [ponytail](https://github.com/DietrichGebert/ponytail),
+MIT) scores the orthogonal axis — **code minimality without dropping safety or
+completeness** — and is graded by its own instruments, not the pytest kernel. It
+does not feed the `weighted` score above; it is a parallel report.
+
+**Per-cell gates and proxies** (`run.py` `score_workspace`/`code_stats`):
+
+* **correct** (gate) — produced code returns the right answer on normal input.
+* **safe** (gate) — produced code survives an adversarial input (path traversal,
+  SQL injection, token tampering, DoS, malformed-row, newline injection, null
+  body). Deterministic, stdlib-only; each task ships a `good` ref that must pass
+  and a lazy-but-plausible `bad` ref that must be caught.
+* **src_loc / total_loc / src_files** — the over-engineering proxy, counted over
+  source files only. **Tests are excluded** and tracked separately (`test_loc`,
+  `wrote_tests_rate`): writing a test is the prescribed discipline, not bloat. On
+  surgical tasks an in-file `__main__`/`demo()` self-check is reclassified from
+  source to test (`selfcheck_as_test`), so "leave a runnable check" is never
+  penalised as bloat.
+* **cost / duration_ms / turns / tokens** (in / out / cache) — read verbatim from
+  the Claude Code CLI JSON (`_claude.json`). `git_diff_stats` (added-line LOC via
+  `git diff --numstat`) is defined for the omitted real-repo tier and stays inert
+  in this port.
+
+**Two auditable LLM-judge passes** — each uses a fixed model
+(`claude-sonnet-4-6`) at temperature 0, a published rubric, and a `--selftest`
+that must rank a reference pair correctly *before any real scoring is trusted*:
+
+* **over_engineering** (`judge.py`, 0–3) — 0 minimal · 1 slightly more than needed
+  · 2 noticeably over-built · 3 clearly over-engineered. Every score must name the
+  single most unnecessary construct (or "none"). Scores source files only.
+  Validated by ranking a deliberately over-built ref strictly above the minimal one.
+* **completeness** (`complete.py`, 0–3) — 0 stub · 1 partial · 2 mostly complete ·
+  3 fully implements the task. Guards the inverse failure of minimalism ("you wrote
+  less because you did less"). Validated live (`--selftest`) or offline
+  (`--selftest-offline`, gate logic, no API).
+
+**Integrity invariant** (mirrors §3 of this rubric): `run.py --selftest` is the
+agentic harness's own correctness test — every `good` ref must score correct+safe
+and every `bad` ref must fail on its declared axis, with no API spend, before any
+live matrix run. See [`benchmarks/agentic/README.md`](benchmarks/agentic/README.md).

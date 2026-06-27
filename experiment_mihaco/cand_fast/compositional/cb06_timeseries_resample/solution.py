@@ -1,25 +1,25 @@
 """
 Compositional 06 — timeseries_resample
-Irregular Time-Series Resampling + Robust Outliers
+Resample irregular sensor readings onto a regular grid, fill interior gaps,
+and flag outliers using scipy.stats.zscore.
 """
-from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from scipy.stats import zscore  # scipy.stats.zscore — surface-form check
+from scipy.stats import zscore
 
 
 def resample_clean(readings: list[dict], freq: str) -> dict:
     """
-    Resample irregularly-spaced sensor readings onto a regular grid,
-    fill interior gaps, and flag outliers.
+    Resample irregular time-series readings to a regular frequency grid,
+    interpolate interior gaps, and detect outliers via z-score.
 
     Parameters
     ----------
     readings : list[dict]
         Each dict has keys 'ts' (ISO-8601 str) and 'value' (float, may be NaN).
     freq : str
-        A valid pandas offset alias (e.g. '1min', '5T', '1H').
+        A valid pandas offset alias (e.g. '1min', '5T', 'H').
 
     Returns
     -------
@@ -28,83 +28,91 @@ def resample_clean(readings: list[dict], freq: str) -> dict:
     Raises
     ------
     ValueError
-        - readings is empty
-        - any ts cannot be parsed as a timestamp
-        - freq is not a valid pandas offset alias
+        If readings is empty, any ts cannot be parsed, or freq is invalid.
     """
-    # Step 0 — validate non-empty
+    # Step 1: Validate non-empty input
     if not readings:
         raise ValueError("readings must not be empty")
 
-    # Step 1 — parse timestamps
-    parsed_ts = []
-    for r in readings:
+    # Step 2: Parse timestamps
+    parsed_rows = []
+    for row in readings:
         try:
-            parsed_ts.append(pd.to_datetime(r["ts"]))
-        except Exception as e:
-            raise ValueError(f"Cannot parse timestamp {r['ts']!r}: {e}") from e
+            ts = pd.to_datetime(row["ts"], format="ISO8601")
+        except Exception as exc:
+            raise ValueError(f"Cannot parse timestamp: {row['ts']!r}") from exc
+        parsed_rows.append({"ts": ts, "value": float(row["value"])})
 
-    # Collect values (preserving NaN as float)
-    values = [float(r["value"]) for r in readings]
+    # Step 3: Build DataFrame, sort ascending, drop duplicates keeping last
+    df = pd.DataFrame(parsed_rows)
+    df = df.sort_values("ts")
+    df = df.drop_duplicates(subset="ts", keep="last")
 
-    # Step 2 — sort ascending by timestamp
-    paired = sorted(zip(parsed_ts, values), key=lambda x: x[0])
-    sorted_ts, sorted_vals = zip(*paired) if paired else ([], [])
+    # Step 4: Build Series indexed by DatetimeIndex
+    series = pd.Series(df["value"].values, index=pd.DatetimeIndex(df["ts"]))
 
-    # Step 3 & 4 — build Series, then drop duplicates keeping LAST
-    index = pd.DatetimeIndex(sorted_ts)
-    series = pd.Series(sorted_vals, index=index, dtype=float)
-    # Sort first (already sorted), then keep last duplicate
-    series = series[~series.index.duplicated(keep="last")]
-
-    # Step 5 — resample to regular grid, mean of each bucket
-    # Validate freq by attempting to convert offset
-    try:
-        pd.tseries.frequencies.to_offset(freq)
-    except Exception as e:
-        raise ValueError(f"Invalid pandas offset alias {freq!r}: {e}") from e
-
+    # Step 5: Resample to freq using mean; wrap to catch invalid freq alias
     try:
         resampled = series.resample(freq).mean()
-    except Exception as e:
-        raise ValueError(f"Resampling failed with freq={freq!r}: {e}") from e
+    except Exception as exc:
+        raise ValueError(f"Invalid pandas offset alias: {freq!r}") from exc
 
-    # Step 6 — interior interpolation only
-    # Capture NaN mask BEFORE interpolation
+    # Step 6: Snapshot NaN mask before interpolation
     nan_before = resampled.isna()
+
+    # Linearly interpolate interior gaps only (leading/trailing NaN stay NaN)
     cleaned = resampled.interpolate(method="linear", limit_area="inside")
-    # Count buckets that were NaN before and are non-NaN after
-    n_interpolated = int((nan_before & cleaned.notna()).sum())
 
-    # Step 7 — outlier detection using scipy.stats.zscore
-    cleaned_values = cleaned.values  # numpy array
-    z_scores = zscore(cleaned_values, nan_policy="omit")  # scipy.stats.zscore call
-    outliers = []
-    for zi in z_scores:
-        if np.isnan(zi):
-            outliers.append(False)
+    # Step 7 (n_interpolated): Count buckets that were NaN before and non-NaN after
+    nan_after = cleaned.isna()
+    n_interpolated = int((nan_before & ~nan_after).sum())
+
+    # Step 8: Compute z-scores using scipy.stats.zscore with nan_policy="omit"
+    # nan_policy="omit" returns a SHORTER array (omits NaN positions).
+    # We must reconstruct a full-length z array with NaN at the original NaN positions.
+    values_arr = cleaned.values.astype(float)
+    nan_mask = np.isnan(values_arr)
+
+    if nan_mask.all():
+        # All values are NaN — no valid data to compute z-scores
+        z_full = np.full(len(values_arr), np.nan)
+    elif (~nan_mask).sum() == 1:
+        # Only one non-NaN value — z-score is 0.0 for that single value
+        z_full = np.full(len(values_arr), np.nan)
+        z_full[~nan_mask] = 0.0
+    else:
+        # Compute z-scores on non-NaN values only (nan_policy="omit" skips NaNs)
+        z_omit = zscore(values_arr, nan_policy="omit")
+        # z_omit is same length as values_arr when nan_policy="omit" in modern scipy
+        # but to be safe, reconstruct from non-NaN positions
+        z_full = np.full(len(values_arr), np.nan)
+        if len(z_omit) == len(values_arr):
+            # Modern scipy: same-length output with NaN at NaN positions
+            z_full = z_omit
         else:
-            outliers.append(bool(abs(zi) > 3.0))
+            # Older scipy: shorter array — re-insert at non-NaN positions
+            z_full[~nan_mask] = z_omit
 
-    # Step 8 — statistics over non-NaN cleaned values
-    mean_val = float(np.nanmean(cleaned_values))
-    std_val = float(np.nanstd(cleaned_values, ddof=1))
+    # Outlier flag: abs(z) > 3.0, NaN z treated as not outlier
+    outliers = [bool(not np.isnan(zi) and abs(zi) > 3.0) for zi in z_full]
 
-    # Build output index as ISO-8601 strings
-    # Use strftime to avoid microsecond artifacts
-    index_strs = cleaned.index.strftime("%Y-%m-%dT%H:%M:%S").tolist()
+    # Step 9: Compute mean and std over non-NaN cleaned values
+    non_nan_vals = values_arr[~nan_after.values]
+    if len(non_nan_vals) == 0:
+        # All buckets are NaN — statistics are NaN
+        mean_val = float("nan")
+        std_val = float("nan")
+    else:
+        mean_val = float(np.nanmean(values_arr))
+        std_val = float(np.nanstd(values_arr, ddof=1))
 
-    # Build values list: None for NaN, float otherwise
-    out_values = []
-    for v in cleaned_values:
-        if np.isnan(v):
-            out_values.append(None)
-        else:
-            out_values.append(float(v))
+    # Step 10: Build return dict
+    index_strs = [ts.isoformat() for ts in cleaned.index]
+    values_out = [None if np.isnan(v) else float(v) for v in values_arr]
 
     return {
         "index": index_strs,
-        "values": out_values,
+        "values": values_out,
         "outliers": outliers,
         "n_interpolated": n_interpolated,
         "mean": mean_val,

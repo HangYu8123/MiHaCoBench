@@ -18,18 +18,18 @@ class MiddlewareChain:
 
     def __call__(self, environ, start_response) -> list:
         """Invoke the chain, falling through to the inner app."""
-        # Build the chain from the inner app outward
-        # The first middleware in the list is the outermost
-        next_app = self._app
+        # Build the chain from the innermost app outward
+        # The first middleware added wraps the outermost call
+        def make_chain(index):
+            if index >= len(self._middlewares):
+                # At the end of the middleware list, call the inner app
+                return self._app
 
-        # Build in reverse order so first-added is outermost
-        for middleware_fn in reversed(self._middlewares):
-            # Capture current next_app and middleware_fn in closure
-            def make_next(mw, nxt):
-                def call(env, sr):
-                    return mw(env, sr, nxt)
-                return call
+            def call_next(env, sr):
+                next_app = make_chain(index + 1)
+                return self._middlewares[index](env, sr, next_app)
 
-            next_app = make_next(middleware_fn, next_app)
+            return call_next
 
-        return next_app(environ, start_response)
+        chain = make_chain(0)
+        return chain(environ, start_response)

@@ -1,176 +1,103 @@
-"""Core scheduling logic: claim, complete, and fail operations.
+"""Claim/complete/fail/status/stats logic using ORM queries."""
 
-All functions accept an open SQLAlchemy :class:`Session` and operate within
-the caller's transaction — the caller is responsible for commit/rollback.
+import sys
+import os
 
-Dependency resolution
----------------------
-A job is *claimable* iff:
-  1. Its status is ``"pending"``.
-  2. Every dependency listed in the ``Dependency`` table for that job has
-     status ``"done"`` in the ``Job`` table.
+_DIR = os.path.dirname(os.path.abspath(__file__))
+if _DIR not in sys.path:
+    sys.path.insert(0, _DIR)
 
-Tie-breaking order for ``claim_job``:
-  1. Highest ``priority`` first (larger int wins).
-  2. Lowest ``id`` first among equal-priority jobs (earlier submission wins).
-"""
-from __future__ import annotations
-
-from sqlalchemy import func, select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
-
-from models import Dependency, Job
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-_STATUSES = ("pending", "running", "done", "failed")
+from models import Job, Dependency
 
 
-def _claimable_stmt():
-    """Return a SELECT statement that matches claimable pending jobs.
-
-    A job is claimable when no *unfinished* dependency exists, i.e.
-    there is no row in ``Dependency`` for that job whose referenced
-    ``depends_on_id`` has status != ``"done"``.
-
-    Uses NOT EXISTS with a correlated subquery for correctness:
-    - Jobs with *no* dependency rows are immediately claimable.
-    - Jobs with dependency rows are claimable only when ALL referenced jobs
-      are ``"done"``.
+def claim_job(session: Session) -> dict | None:
     """
-    # Alias the dependency table to a correlated alias so SQLAlchemy can
-    # differentiate the inner Job from the outer Job.
-    dep_job = Job.__table__.alias("dep_job")
+    Find and return the highest-priority claimable pending job, marking it running.
 
-    # Correlated subquery: select 1 where there exists an unfinished dep.
-    unfinished_dep = (
-        select(Dependency.depends_on_id)
-        .where(Dependency.job_id == Job.id)          # correlated on outer job.id
-        .join(dep_job, dep_job.c.id == Dependency.depends_on_id)
-        .where(dep_job.c.status != "done")
-        .correlate(Job)                              # explicit correlation
+    A job is claimable iff:
+      - status == "pending"
+      - ALL jobs it depends on have status == "done"
+        (equivalently: there is NO dependency row pointing to a non-done job)
+    """
+    # Subquery: select job_ids that have at least one dependency whose depended-on
+    # job is NOT done (i.e., blocked jobs).
+    blocked_subq = (
+        select(Dependency.job_id)
+        .join(Job, Job.id == Dependency.depends_on_id)
+        .where(Job.status != "done")
     )
 
     stmt = (
         select(Job)
-        .where(Job.status == "pending")
-        .where(~unfinished_dep.exists())             # NOT EXISTS
+        .where(
+            Job.status == "pending",
+            ~Job.id.in_(blocked_subq),
+        )
         .order_by(Job.priority.desc(), Job.id.asc())
         .limit(1)
     )
-    return stmt
 
-
-# ---------------------------------------------------------------------------
-# Public scheduling functions
-# ---------------------------------------------------------------------------
-
-
-def claim_job(session: Session) -> Job | None:
-    """Find and atomically mark the highest-priority claimable job as ``"running"``.
-
-    Parameters
-    ----------
-    session:
-        An active SQLAlchemy session (transaction already open).
-
-    Returns
-    -------
-    Job or None
-        The claimed :class:`Job` ORM object, or ``None`` if nothing is
-        currently claimable.
-    """
-    stmt = _claimable_stmt()
-    job = session.scalar(stmt)
+    job = session.scalars(stmt).first()
     if job is None:
         return None
+
+    # Atomically mark as running within the same session
     job.status = "running"
-    session.flush()  # write to DB within the transaction before commit
-    return job
+    session.commit()
+
+    return {
+        "id": job.id,
+        "name": job.name,
+        "payload": job.payload,
+        "priority": job.priority,
+    }
 
 
 def complete_job(session: Session, job_id: int, result: dict | None = None) -> None:
-    """Mark *job_id* as ``"done"`` and optionally store *result*.
-
-    Parameters
-    ----------
-    session:
-        An active SQLAlchemy session.
-    job_id:
-        Primary key of the job to complete.
-    result:
-        Optional result payload to persist.
-
-    Raises
-    ------
-    ValueError
-        If no job with *job_id* exists.
-    """
+    """Mark job as done and store optional result."""
     job = session.get(Job, job_id)
     if job is None:
-        raise ValueError(f"No job with id={job_id!r}")
+        raise ValueError(f"Job {job_id} not found")
     job.status = "done"
     job.result = result
-    session.flush()
+    session.commit()
 
 
 def fail_job(session: Session, job_id: int, max_retries: int) -> None:
-    """Record a failure attempt for *job_id*.
+    """
+    Record a failure attempt.
 
-    The retry logic follows the spec exactly:
-
-    - If ``job.attempts < max_retries``: increment ``attempts``, reset
-      status to ``"pending"`` so the scheduler will retry the job.
-    - If ``job.attempts >= max_retries``: set status to ``"failed"``
-      permanently (``attempts`` is still incremented for auditability).
-
-    Parameters
-    ----------
-    session:
-        An active SQLAlchemy session.
-    job_id:
-        Primary key of the job that failed.
-    max_retries:
-        Maximum number of attempts allowed before permanent failure.
-
-    Raises
-    ------
-    ValueError
-        If no job with *job_id* exists.
+    1. Increment attempts first.
+    2. If new attempts < max_retries: set status to "pending" (retry).
+    3. If new attempts >= max_retries: set status to "failed" (permanent).
     """
     job = session.get(Job, job_id)
     if job is None:
-        raise ValueError(f"No job with id={job_id!r}")
+        raise ValueError(f"Job {job_id} not found")
+    job.attempts += 1
     if job.attempts < max_retries:
-        job.attempts += 1
         job.status = "pending"
     else:
-        # attempts >= max_retries: permanently failed
-        job.attempts += 1
         job.status = "failed"
-    session.flush()
+    session.commit()
+
+
+def get_status(session: Session, job_id: int) -> str:
+    """Return the current status string for job_id."""
+    job = session.get(Job, job_id)
+    if job is None:
+        raise ValueError(f"Job {job_id} not found")
+    return job.status
 
 
 def get_stats(session: Session) -> dict:
-    """Return per-status job counts; all four status keys are always present.
-
-    Parameters
-    ----------
-    session:
-        An active SQLAlchemy session.
-
-    Returns
-    -------
-    dict
-        ``{"pending": int, "running": int, "done": int, "failed": int}``
-    """
+    """Return counts for all four statuses."""
     rows = session.execute(
-        select(Job.status, func.count(Job.id)).group_by(Job.status)
+        select(Job.status, func.count()).group_by(Job.status)
     ).all()
-    counts: dict[str, int] = {s: 0 for s in _STATUSES}
-    for status, cnt in rows:
-        if status in counts:
-            counts[status] = cnt
-    return counts
+    result = {"pending": 0, "running": 0, "done": 0, "failed": 0}
+    for status, count in rows:
+        result[status] = count
+    return result

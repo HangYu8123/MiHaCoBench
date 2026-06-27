@@ -1,26 +1,19 @@
-"""money.py — Monetary rounding helper."""
+"""money.py — monetary rounding helper."""
 
 import decimal
 from decimal import Decimal, ROUND_HALF_EVEN
 
 
 def round_cents(exact) -> int:
-    """Round an exact monetary amount (in cents) to the nearest whole cent.
+    """Round an exact monetary amount in cents to the nearest whole cent.
 
-    Uses half-to-even (banker's) rounding.
+    Ties are resolved half-to-even (banker's rounding).
+    Returns a plain int.
 
-    Parameters
-    ----------
-    exact : Decimal | float | int
-        The exact amount in cents.
-
-    Returns
-    -------
-    int
-        The rounded whole-cent value.
+    Floats are interpreted by their decimal text value, not binary expansion.
     """
-    if not isinstance(exact, Decimal):
-        # Convert via string to avoid float binary-expansion issues
-        exact = Decimal(str(exact))
-    rounded = exact.quantize(Decimal("1"), rounding=ROUND_HALF_EVEN)
-    return int(rounded)
+    if isinstance(exact, float):
+        d = Decimal(str(exact))
+    else:
+        d = Decimal(exact)
+    return int(d.quantize(Decimal("1"), rounding=ROUND_HALF_EVEN))

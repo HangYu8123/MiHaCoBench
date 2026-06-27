@@ -57,7 +57,7 @@ from _lib import grading_utils as gu  # noqa: E402
 TASKS_ROOT = BENCH_ROOT / "tasks"
 # New categories are APPENDED (never inserted) so results.json category order stays stable.
 CATEGORIES = ["easy", "complex", "data_analysis", "algorithmic", "long_horizon", "ml", "debug",
-              "swe_bench", "compositional", "competitive"]
+              "swe_bench", "compositional", "competitive", "harness"]
 
 
 # --------------------------------------------------------------------------- #

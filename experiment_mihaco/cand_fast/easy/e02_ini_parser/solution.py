@@ -1,147 +1,140 @@
-"""
-INI-file parser with value coercion and interpolation.
-"""
 import re
 
 
 def parse_ini(text: str) -> dict[str, dict[str, object]]:
-    """
-    Parse an INI-format string and return a nested dict of
-    {section: {key: coerced_value}}.
-    """
-    # Step 1: Parse raw key/value pairs per section
+    """Parse an INI file string into a nested dict with coercion and interpolation."""
+    # Step 1: Parse lines into raw {section -> {key: str_value}} dict
     raw: dict[str, dict[str, str]] = {}
-    current_section = None
+    current_section = "default"
 
     for line in text.splitlines():
         stripped = line.strip()
 
-        # Skip blank lines and comment lines
+        # Skip blank lines
         if not stripped:
             continue
+
+        # Skip comment lines (first non-whitespace char is # or ;)
         if stripped[0] in ('#', ';'):
             continue
 
         # Section header
-        m = re.fullmatch(r'\[(.+)\]', stripped)
-        if m:
-            current_section = m.group(1).strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            current_section = stripped[1:-1].strip()
             if current_section not in raw:
                 raw[current_section] = {}
             continue
 
-        # Key/value pair — find whichever separator (= or :) comes first
-        eq_pos = stripped.find('=')
-        col_pos = stripped.find(':')
+        # Key/value pair: find whichever separator (= or :) comes first
+        eq_pos = line.find('=')
+        colon_pos = line.find(':')
 
-        if eq_pos == -1 and col_pos == -1:
-            # No separator — skip line
+        # Treat missing separator as effectively infinity
+        if eq_pos == -1:
+            eq_pos = len(line) + 1
+        if colon_pos == -1:
+            colon_pos = len(line) + 1
+
+        sep = min(eq_pos, colon_pos)
+
+        # If no separator found, skip this line
+        if sep >= len(line):
             continue
 
-        if eq_pos == -1:
-            sep_pos = col_pos
-        elif col_pos == -1:
-            sep_pos = eq_pos
-        else:
-            sep_pos = min(eq_pos, col_pos)
+        key = line[:sep].strip()
+        value = line[sep + 1:].strip()
 
-        key = stripped[:sep_pos].strip()
-        value = stripped[sep_pos + 1:].strip()
+        if current_section not in raw:
+            raw[current_section] = {}
+        raw[current_section][key] = value
 
-        section_name = current_section if current_section is not None else "default"
-        if section_name not in raw:
-            raw[section_name] = {}
-        raw[section_name][key] = value
-
-    # Step 2: Coerce values
-    def coerce(value: str) -> object:
-        # 1. Try int — only if round-trip matches
-        _looks_like_int = False
+    # Step 2: Coerce each raw string value
+    def coerce(v: str) -> object:
+        # Try int first: guard that str(int(v)) == v.strip()
         try:
-            int_val = int(value)
-            if str(int_val) == value:
+            int_val = int(v)
+            if str(int_val) == v.strip():
                 return int_val
-            else:
-                # Parsed as int but round-trip failed (e.g. "007", "+1", " 3")
-                # Mark as int-like to skip float coercion (keep as string)
-                _looks_like_int = True
-        except (ValueError, OverflowError):
+        except (ValueError, TypeError):
             pass
 
-        # 2. Try float — but skip if it looks like a malformed integer
-        if not _looks_like_int:
-            try:
-                float_val = float(value)
-                return float_val
-            except (ValueError, OverflowError):
-                pass
+        # Try float
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            pass
 
-        # 3. Boolean true
-        if value.lower() in ('true', 'yes'):
+        # Try bool
+        lower_v = v.lower()
+        if lower_v in ('true', 'yes'):
             return True
-
-        # 4. Boolean false
-        if value.lower() in ('false', 'no'):
+        if lower_v in ('false', 'no'):
             return False
 
-        # 5. Keep as string
-        return value
+        # Keep as str
+        return v
 
-    coerced: dict[str, dict[str, object]] = {}
+    result: dict[str, dict[str, object]] = {}
     for section, pairs in raw.items():
-        coerced[section] = {}
-        for key, val in pairs.items():
-            coerced[section][key] = coerce(val)
+        result[section] = {}
+        for key, val_str in pairs.items():
+            result[section][key] = coerce(val_str)
 
-    # Step 3: Interpolation — only on values that are still str
-    _TOKEN_RE = re.compile(r'\$\{([^}]+)\}')
+    # Prune empty "default" section (if no keys appeared before first section header)
+    if "default" in result and not result["default"]:
+        del result["default"]
 
-    def resolve(value: str, visited: set) -> str:
-        """Iteratively resolve ${section.key} tokens in a string value."""
-        for _ in range(1000):
-            tokens = _TOKEN_RE.findall(value)
+    # Step 3: Interpolation — only for values that are str
+    token_pattern = re.compile(r'\$\{([^}]+)\}')
+
+    def resolve_value(value: str, section_name: str, key_name: str) -> str:
+        """Iteratively resolve ${section.key} references in a string value."""
+        max_iters = 100
+        for _ in range(max_iters):
+            tokens = token_pattern.findall(value)
             if not tokens:
-                break
+                # Stable — no more references
+                return value
 
-            new_value = value
+            old_value = value
             for token in tokens:
-                # Split on first dot only
+                # token should be "section.key"
                 parts = token.split('.', 1)
                 if len(parts) != 2:
                     raise ValueError(
-                        f"Invalid interpolation reference: ${{{token}}}"
+                        f"Invalid interpolation token '${{{token}}}' in [{section_name}].{key_name}"
                     )
                 ref_section, ref_key = parts[0], parts[1]
 
-                if ref_section not in coerced:
+                if ref_section not in result:
                     raise ValueError(
-                        f"Interpolation error: section '{ref_section}' not found"
+                        f"Interpolation references non-existent section '{ref_section}' "
+                        f"in [{section_name}].{key_name}"
                     )
-                if ref_key not in coerced[ref_section]:
+                if ref_key not in result[ref_section]:
                     raise ValueError(
-                        f"Interpolation error: key '{ref_key}' not found in section '{ref_section}'"
+                        f"Interpolation references non-existent key '{ref_key}' "
+                        f"in section '{ref_section}' (referenced from [{section_name}].{key_name})"
                     )
 
-                ref_val = coerced[ref_section][ref_key]
-                new_value = new_value.replace(f'${{{token}}}', str(ref_val), 1)
+                resolved = result[ref_section][ref_key]
+                value = value.replace('${' + token + '}', str(resolved))
 
-            if new_value == value:
-                break
-            value = new_value
-        else:
-            # Exhausted iterations without stabilizing — cycle detected
-            if _TOKEN_RE.search(value):
-                raise ValueError(
-                    f"Cycle detected in interpolation: '{value}'"
-                )
+            # Check stability
+            if value == old_value:
+                # No progress made despite tokens found — this shouldn't happen
+                # since we resolved tokens above, but guard just in case
+                return value
 
-        return value
+        # If we exhausted iterations, cycle detected
+        raise ValueError(
+            f"Cycle detected during interpolation in [{section_name}].{key_name}"
+        )
 
     # Apply interpolation to all string values
-    for section in coerced:
-        for key in coerced[section]:
-            val = coerced[section][key]
+    for section_name, pairs in result.items():
+        for key_name, val in pairs.items():
             if isinstance(val, str):
-                coerced[section][key] = resolve(val, set())
+                result[section_name][key_name] = resolve_value(val, section_name, key_name)
 
-    return coerced
+    return result

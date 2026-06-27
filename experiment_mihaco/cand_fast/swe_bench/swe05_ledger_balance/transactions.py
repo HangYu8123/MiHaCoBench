@@ -1,11 +1,3 @@
-"""transactions.py — Entry posting logic for the double-entry ledger.
-
-The root cause of the known bug was here: entries with negative (debit)
-amounts were silently dropped instead of being applied. This implementation
-correctly applies EVERY entry unconditionally.
-"""
-
-
 def post_entries(entries, accounts) -> None:
     """Apply EVERY entry to its account.
 

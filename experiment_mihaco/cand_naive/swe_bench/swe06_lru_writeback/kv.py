@@ -1,3 +1,12 @@
+import sys
+import os
+
+# Allow importing from the same directory
+_dir = os.path.dirname(os.path.abspath(__file__))
+if _dir not in sys.path:
+    sys.path.insert(0, _dir)
+
+from store import Backing  # noqa: F401 (re-exported for convenience)
 from cache import LRU, MISS
 
 
@@ -14,9 +23,9 @@ class KV:
         - On a cache miss, read the backing store (which raises KeyError if the
           key is truly absent), populate the cache with the value, and return it.
         """
-        cached = self._cache.get(key)
-        if cached is not MISS:
-            return cached
+        result = self._cache.get(key)
+        if result is not MISS:
+            return result
         # Cache miss: read from backing store (raises KeyError if absent)
         value = self._backing.get(key)
         self._cache.put(key, value)

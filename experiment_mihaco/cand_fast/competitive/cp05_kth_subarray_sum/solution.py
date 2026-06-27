@@ -15,10 +15,6 @@ def kth_subarray_sum(a: list[int], k: int) -> int:
     """
     n = len(a)
 
-    # Edge case: single element
-    if n == 1:
-        return int(a[0])
-
     def count_le(S: int) -> int:
         """Count subarrays with sum <= S using two-pointer sliding window."""
         count = 0
@@ -26,18 +22,17 @@ def kth_subarray_sum(a: list[int], k: int) -> int:
         i = 0
         for j in range(n):
             window_sum += a[j]
-            # Shrink window from left while sum exceeds S
             while window_sum > S:
                 window_sum -= a[i]
                 i += 1
-            # All subarrays ending at j and starting from i..j have sum <= S
             count += j - i + 1
         return count
 
-    # Binary search: find smallest S such that count_le(S) >= k
     lo = min(a)
     hi = sum(a)
 
+    # Binary search: find smallest S such that count_le(S) >= k.
+    # Invariant: answer is in [lo, hi].
     while lo < hi:
         mid = (lo + hi) // 2
         if count_le(mid) >= k:
@@ -45,4 +40,4 @@ def kth_subarray_sum(a: list[int], k: int) -> int:
         else:
             lo = mid + 1
 
-    return int(lo)
+    return lo

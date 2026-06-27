@@ -1,0 +1,14 @@
+{
+  "id": "cp09_dependent_selection",
+  "category": "competitive",
+  "title": "Maximum-value dependency-closed selection (max-weight closure via min-cut)",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["best_selection_value"], "cli": false},
+  "grader": "grader/test_cp09.py",
+  "steps": null,
+  "complexity_target": "polynomial (min-cut)",
+  "created": "2026-06-17",
+  "source": "Maximum-weight closure: pick a subset maximizing total (possibly negative) value, closed under 'a requires b' constraints. The non-obvious observation is the reduction to a minimum s-t cut (project-selection / max-weight-closure); the natural 'take all positives + close' greedy is wrong. Ground truth: independent brute-force subset enumeration (small n) AND an independent Edmonds-Karp max-flow oracle (medium n, where brute is infeasible).",
+  "oracle": "brute-force + independent max-flow (Edmonds-Karp)"
+}

@@ -1,63 +1,65 @@
-"""traversal.py — BFS, Dijkstra, and connected components."""
+"""Graph traversal algorithms."""
 
-import heapq
 from collections import deque
+import heapq
 
 
 def bfs(graph, source) -> dict:
-    """BFS from source. Returns {node: hop_distance} for reachable nodes."""
+    """Breadth-first traversal from *source*.
+
+    Returns a dict mapping each reachable node (including source) to its
+    hop distance (number of edges).  Unreachable nodes are omitted.
+    """
     dist = {source: 0}
     queue = deque([source])
     while queue:
         node = queue.popleft()
-        for neighbor, _weight in graph.neighbors(node):
-            if neighbor not in dist:
-                dist[neighbor] = dist[node] + 1
-                queue.append(neighbor)
+        for nbr, _ in graph.neighbors(node):
+            if nbr not in dist:
+                dist[nbr] = dist[node] + 1
+                queue.append(nbr)
     return dist
 
 
 def dijkstra(graph, source) -> dict:
-    """Dijkstra shortest paths from source. Returns {node: float_distance}."""
+    """Shortest-path distances (by edge weight sum) from *source*.
+
+    Returns {node: distance}.  Unreachable nodes are omitted.
+    """
     dist = {source: 0.0}
     heap = [(0.0, source)]
-    visited = set()
-
     while heap:
         d, node = heapq.heappop(heap)
-        if node in visited:
+        if d > dist[node]:
             continue
-        visited.add(node)
-        for neighbor, weight in graph.neighbors(node):
-            new_dist = d + weight
-            if neighbor not in dist or new_dist < dist[neighbor]:
-                dist[neighbor] = new_dist
-                heapq.heappush(heap, (new_dist, neighbor))
-
+        for nbr, w in graph.neighbors(node):
+            nd = d + w
+            if nbr not in dist or nd < dist[nbr]:
+                dist[nbr] = nd
+                heapq.heappush(heap, (nd, nbr))
     return dist
 
 
 def connected_components(graph) -> list:
-    """
-    For undirected graphs only.
-    Returns a list of sets, each containing nodes of one connected component.
+    """Return connected components of an *undirected* graph.
+
+    Returns a list of sets; each set contains the nodes of one component.
     """
     visited = set()
     components = []
-
-    for node in graph._nodes:
-        if node not in visited:
-            # BFS to expand this component
-            component = set()
-            queue = deque([node])
-            visited.add(node)
-            while queue:
-                current = queue.popleft()
-                component.add(current)
-                for neighbor, _weight in graph.neighbors(current):
-                    if neighbor not in visited:
-                        visited.add(neighbor)
-                        queue.append(neighbor)
-            components.append(component)
-
+    for start in graph._adj:
+        if start in visited:
+            continue
+        # BFS flood-fill
+        component = set()
+        queue = deque([start])
+        visited.add(start)
+        while queue:
+            node = queue.popleft()
+            component.add(node)
+            for nbr, _ in graph.neighbors(node):
+                if nbr not in visited:
+                    visited.add(nbr)
+                    queue.append(nbr)
+        components.append(component)
     return components

@@ -7,7 +7,7 @@ class LRU:
     def __init__(self, capacity: int) -> None:
         """Create a cache holding at most `capacity` entries (capacity >= 1)."""
         self._capacity = capacity
-        self._cache = OrderedDict()
+        self._cache = OrderedDict()  # key -> value, ordered by recency (MRU at end)
 
     def get(self, key):
         """Return the cached value and mark `key` most-recently-used (MRU),
@@ -27,15 +27,15 @@ class LRU:
           marked most-recently-used.
         """
         if key in self._cache:
-            # Overwrite the stored value AND mark as MRU
+            # Overwrite the stored value and mark MRU
             self._cache[key] = value
             self._cache.move_to_end(key)
         else:
-            # Insert new key
+            # New key: insert and evict LRU if over capacity
             self._cache[key] = value
             self._cache.move_to_end(key)
-            # Evict LRU if over capacity
             if len(self._cache) > self._capacity:
+                # Remove the LRU item (first item in OrderedDict)
                 self._cache.popitem(last=False)
 
     def invalidate(self, key) -> None:

@@ -1,8 +1,6 @@
 """
-20-step ETL pipeline.
-
-Usage:
-    python solution.py --step <K> --in <input_json_path> --out <output_json_path>
+Mega ETL pipeline — 20-step chain.
+Usage: python solution.py --step <K> --in <input_json_path> --out <output_json_path>
 """
 
 import argparse
@@ -11,15 +9,14 @@ import json
 import sys
 
 
-def compute_provenance(in_path: str) -> str:
-    """Compute sha256 hex digest of the input file bytes."""
-    with open(in_path, "rb") as f:
+def compute_provenance(path: str) -> str:
+    with open(path, "rb") as f:
         return hashlib.sha256(f.read()).hexdigest()
 
 
 def step_1_parse(data):
-    """Read 'values' from input; convert each integer to float."""
-    return [float(x) for x in data["values"]]
+    """Read `values` from input; convert each integer to float."""
+    return [float(v) for v in data["values"]]
 
 
 def step_2_add_const(data):
@@ -29,12 +26,12 @@ def step_2_add_const(data):
 
 def step_3_double(data):
     """Multiply every element by 2."""
-    return [x * 2.0 for x in data]
+    return [x * 2 for x in data]
 
 
 def step_4_mod(data):
     """Apply modulo 11 to every element (floating-point %)."""
-    return [x % 11.0 for x in data]
+    return [x % 11 for x in data]
 
 
 def step_5_scale_by_index(data):
@@ -55,21 +52,21 @@ def step_6_cumsum(data):
 def step_7_prefix_max(data):
     """Running maximum from left."""
     result = []
-    current_max = float("-inf")
+    current_max = None
     for x in data:
-        if x > current_max:
+        if current_max is None or x > current_max:
             current_max = x
         result.append(current_max)
     return result
 
 
 def step_8_prefix_min(data):
-    """Running minimum from right (element k = min of elements k..end)."""
+    """Running minimum from right: result[i] = min(data[i], data[i+1], ..., data[n-1])."""
     n = len(data)
     result = [0.0] * n
-    current_min = float("inf")
+    current_min = None
     for i in range(n - 1, -1, -1):
-        if data[i] < current_min:
+        if current_min is None or data[i] < current_min:
             current_min = data[i]
         result[i] = current_min
     return result
@@ -91,17 +88,17 @@ def step_11_square(data):
 
 
 def step_12_normalize_minmax(data):
-    """Min-max normalization to [0, 1]."""
+    """Min-max normalization to [0, 1]. If max == min, all elements become 0.0."""
     mn = min(data)
     mx = max(data)
     if mx == mn:
-        return [0.0 for _ in data]
+        return [0.0] * len(data)
     return [(x - mn) / (mx - mn) for x in data]
 
 
 def step_13_scale(data):
     """Multiply every element by 1000."""
-    return [x * 1000.0 for x in data]
+    return [x * 1000 for x in data]
 
 
 def step_14_round3(data):
@@ -110,15 +107,15 @@ def step_14_round3(data):
 
 
 def step_15_moving_avg_3(data):
-    """Trailing 3-element moving average with smaller window at boundaries."""
+    """Trailing 3-element moving average with boundary handling."""
     result = []
-    for i, x in enumerate(data):
-        if i == 0:
-            result.append(x)
-        elif i == 1:
+    for k in range(len(data)):
+        if k == 0:
+            result.append(data[0])
+        elif k == 1:
             result.append((data[0] + data[1]) / 2.0)
         else:
-            result.append((data[i - 2] + data[i - 1] + data[i]) / 3.0)
+            result.append((data[k - 2] + data[k - 1] + data[k]) / 3.0)
     return result
 
 
@@ -156,11 +153,11 @@ def step_20_aggregate(data):
         "mean": float(sum(data) / len(data)),
         "min": float(min(data)),
         "max": float(max(data)),
-        "count": int(len(data)),
+        "count": len(data),
     }
 
 
-STEPS = {
+STEP_FUNCTIONS = {
     1: step_1_parse,
     2: step_2_add_const,
     3: step_3_double,
@@ -185,49 +182,45 @@ STEPS = {
 
 
 def main():
-    parser = argparse.ArgumentParser(description="20-step ETL pipeline")
-    parser.add_argument("--step", type=int, required=True, help="Step number (1-20)")
-    parser.add_argument("--in", dest="in_path", required=True, help="Input JSON file path")
-    parser.add_argument("--out", dest="out_path", required=True, help="Output JSON file path")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--step", type=int, required=True)
+    parser.add_argument("--in", dest="in_path", required=True)
+    parser.add_argument("--out", dest="out_path", required=True)
     args = parser.parse_args()
 
-    step_num = args.step
+    step = args.step
     in_path = args.in_path
     out_path = args.out_path
 
-    if step_num not in STEPS:
-        print(f"Error: step {step_num} is not defined (must be 1-20)", file=sys.stderr)
-        sys.exit(1)
-
-    # Compute provenance BEFORE reading data (from the raw bytes)
+    # Compute provenance BEFORE reading content for processing
     provenance = compute_provenance(in_path)
 
-    # Read input JSON
+    # Read input
     with open(in_path, "r") as f:
-        in_data = json.load(f)
+        in_obj = json.load(f)
 
-    # For step 1, input is the raw input.json with 'values' key.
-    # For steps 2-20, input is the output of the previous step with 'data' key.
-    if step_num == 1:
-        data = in_data
+    # Step 1 reads the raw input object; all other steps read in_obj["data"]
+    if step == 1:
+        input_data = in_obj
     else:
-        data = in_data["data"]
+        input_data = in_obj["data"]
 
     # Run the step
-    step_fn = STEPS[step_num]
-    result = step_fn(data)
+    if step not in STEP_FUNCTIONS:
+        print(f"Unknown step: {step}", file=sys.stderr)
+        sys.exit(1)
+
+    result = STEP_FUNCTIONS[step](input_data)
 
     # Write output
     out_obj = {
-        "step": step_num,
+        "step": step,
         "data": result,
         "provenance": provenance,
     }
 
     with open(out_path, "w") as f:
         json.dump(out_obj, f)
-
-    print(f"Step {step_num} complete. Output written to {out_path}")
 
 
 if __name__ == "__main__":

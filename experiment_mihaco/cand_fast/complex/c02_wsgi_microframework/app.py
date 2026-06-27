@@ -1,32 +1,16 @@
-"""app.py — Core WSGI App class."""
+"""app.py — Core App class for the WSGI micro-framework."""
 
-import importlib.util
 import sys
 import os
 
-# Load http.py from the same directory (avoids conflict with stdlib 'http')
+# Ensure sibling modules are importable when this file is run directly
 _dir = os.path.dirname(os.path.abspath(__file__))
+if _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
-
-def _load_local(module_name, filename):
-    """Load a module from the same directory as this file."""
-    key = f'_wsgi_fw_{module_name}'
-    if key in sys.modules:
-        return sys.modules[key]
-    path = os.path.join(_dir, filename)
-    spec = importlib.util.spec_from_file_location(key, path)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[key] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-_http = _load_local('http', 'http.py')
-Request = _http.Request
-Response = _http.Response
-
-_router = _load_local('router', 'router.py')
-Router = _router.Router
+from http import Request, Response  # noqa: E402 (local http.py)
+from router import Router  # noqa: E402
+from middleware import MiddlewareChain  # noqa: E402
 
 
 class App:
@@ -34,35 +18,46 @@ class App:
 
     def __init__(self) -> None:
         self.router = Router()
+        self.middleware_chain = MiddlewareChain(self._dispatch)
 
     def route(self, path: str, methods=None):
         """Decorator factory: register the decorated function as the handler for
-        path + methods (default ["GET"])."""
+        *path* + *methods* (default ``["GET"]``)."""
         if methods is None:
             methods = ["GET"]
 
-        def decorator(fn):
-            self.router.add_route(path, methods, fn)
-            return fn
+        def decorator(handler):
+            self.router.add_route(path, methods, handler)
+            return handler
 
         return decorator
 
     def __call__(self, environ: dict, start_response) -> list:
         """WSGI entry point. Dispatch the request; return the response body."""
+        return self.middleware_chain(environ, start_response)
+
+    def _dispatch(self, environ: dict, start_response) -> list:
+        """Internal dispatcher: build Request, match route, call handler."""
         request = Request(environ)
-        result = self.router.match(request.path, request.method)
-        handler, extra = result
+        result, extra = self.router.match(request.path, request.method)
 
-        if handler is None:
-            # extra is 404 or 405
-            resp = Response(status_code=extra)
-            if extra == 404:
-                resp.set_json({"error": "not found"})
+        if result is None:
+            # extra is an integer status code (404 or 405)
+            status_code = extra
+            response = Response()
+            response.status_code = status_code
+            if status_code == 404:
+                response.set_json({"error": "not found"})
+            elif status_code == 405:
+                response.set_json({"error": "method not allowed"})
             else:
-                resp.set_json({"error": "method not allowed"})
-            return resp(environ, start_response)
+                response.set_json({"error": "error"})
+            return response(environ, start_response)
 
-        # handler found, extra is the path_params dict
-        request.path_params = extra
+        # result is the handler, extra is path_params dict
+        handler = result
+        path_params = extra
+        request.path_params = path_params
+
         response = handler(request)
         return response(environ, start_response)

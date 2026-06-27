@@ -1,12 +1,10 @@
-"""
-config.py — Parse a YAML pipeline spec into dataclasses.
-"""
+"""config.py — Parse a YAML pipeline spec into dataclasses."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
-
 import yaml
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -15,97 +13,35 @@ class ExtractConfig:
 
 
 @dataclass
+class TransformStep:
+    op: str
+    params: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class LoadConfig:
     table: str
 
 
 @dataclass
-class FilterTransformConfig:
-    op: str  # "filter"
-    column: str
-    op_kind: str
-    value: Any
-
-
-@dataclass
-class RenameTransformConfig:
-    op: str  # "rename"
-    mapping: Dict[str, str]
-
-
-@dataclass
-class DeriveTransformConfig:
-    op: str  # "derive"
-    column: str
-    expr: str
-
-
-@dataclass
-class AggregateTransformConfig:
-    op: str  # "aggregate"
-    group_by: List[str]
-    agg: Dict[str, str]
-
-
-TransformConfig = Union[
-    FilterTransformConfig,
-    RenameTransformConfig,
-    DeriveTransformConfig,
-    AggregateTransformConfig,
-]
-
-
-@dataclass
 class PipelineConfig:
     extract: ExtractConfig
-    transforms: List[TransformConfig]
+    transforms: list[TransformStep]
     load: LoadConfig
 
 
-def parse_transform(raw: dict) -> TransformConfig:
-    """Parse a single transform dict into the appropriate config dataclass."""
-    op = raw["op"]
-    if op == "filter":
-        return FilterTransformConfig(
-            op=op,
-            column=raw["column"],
-            op_kind=raw["op_kind"],
-            value=raw["value"],
-        )
-    elif op == "rename":
-        return RenameTransformConfig(
-            op=op,
-            mapping=dict(raw["mapping"]),
-        )
-    elif op == "derive":
-        return DeriveTransformConfig(
-            op=op,
-            column=raw["column"],
-            expr=raw["expr"],
-        )
-    elif op == "aggregate":
-        return AggregateTransformConfig(
-            op=op,
-            group_by=list(raw["group_by"]),
-            agg=dict(raw["agg"]),
-        )
-    else:
-        raise ValueError(f"Unknown transform op: {op!r}")
+def parse_config(yaml_text: str) -> PipelineConfig:
+    """Parse YAML text into a PipelineConfig dataclass."""
+    cfg = yaml.safe_load(yaml_text)
 
-
-def parse_pipeline_config(yaml_text: str) -> PipelineConfig:
-    """Parse a YAML pipeline spec string into a PipelineConfig."""
-    raw = yaml.safe_load(yaml_text)
-
-    extract = ExtractConfig(csv=raw["extract"]["csv"])
-    load = LoadConfig(table=raw["load"]["table"])
+    extract = ExtractConfig(csv=cfg["extract"]["csv"])
 
     transforms = []
-    for t in raw.get("transforms", []):
-        transforms.append(parse_transform(t))
+    for step in cfg.get("transforms", []):
+        op = step["op"]
+        params = {k: v for k, v in step.items() if k != "op"}
+        transforms.append(TransformStep(op=op, params=params))
 
-    return PipelineConfig(
-        extract=extract,
-        transforms=transforms,
-        load=load,
-    )
+    load = LoadConfig(table=cfg["load"]["table"])
+
+    return PipelineConfig(extract=extract, transforms=transforms, load=load)

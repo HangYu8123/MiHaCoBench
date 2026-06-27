@@ -1,205 +1,173 @@
 """
 Long-Horizon 11 — index_build (6 steps)
-TF-IDF search-index pipeline. Stdlib only.
-
-Usage:
-    python solution.py --step <K> --in <input_json_path> --out <output_json_path>
+TF-IDF search-index pipeline.
 """
-
 import argparse
-import json
 import hashlib
-import re
+import json
 import math
-import collections
+import re
+from collections import Counter
 
 
-def compute_provenance(in_path):
-    """Compute sha256 of the exact bytes of the --in file."""
-    with open(in_path, 'rb') as f:
-        data = f.read()
-    return hashlib.sha256(data).hexdigest()
+def load_input(path):
+    """Read file bytes for provenance hash, then parse JSON."""
+    raw_bytes = open(path, 'rb').read()
+    provenance = hashlib.sha256(raw_bytes).hexdigest()
+    data = json.loads(raw_bytes)
+    return data, provenance
 
 
-def write_output(out_path, step, data, provenance):
-    """Write the output JSON envelope."""
-    result = {"step": step, "data": data, "provenance": provenance}
-    with open(out_path, 'w') as f:
-        json.dump(result, f)
+def write_output(path, step, result):
+    """Write output JSON with step, data, and provenance."""
+    # provenance is computed by the caller from the input file bytes
+    # This function is a no-op placeholder; see main() for actual writing
+    pass
 
 
-def step1_tokenize(prev):
-    """
-    Step 1: tokenize each doc's text.
-    Input: prev["docs"] = [{"id": ..., "text": ...}, ...]
-    Output: {"tokens": {doc_id: [tokens]}}
-    """
-    docs = prev["docs"]
+def step1_tokenize(raw):
+    """Step 1: Tokenize docs. Input is docs.json with top-level 'docs' key."""
+    docs = raw["docs"]
     tokens = {}
     for doc in docs:
         doc_id = doc["id"]
-        text = doc["text"]
-        raw = re.split(r'[^a-z0-9]+', text.lower())
-        tok_list = [t for t in raw if t]
-        tokens[doc_id] = tok_list
+        text = doc["text"].lower()
+        toks = re.split(r'[^a-z0-9]+', text)
+        toks = [t for t in toks if t]
+        tokens[doc_id] = toks
     return {"tokens": tokens}
 
 
-def step2_term_counts(prev):
-    """
-    Step 2: count term occurrences per doc.
-    Input: prev["tokens"] = {doc_id: [tokens]}
-    Output: {"counts": {doc_id: {term: count}}}
-    """
-    tokens = prev["tokens"]
+def step2_term_counts(prev_data):
+    """Step 2: Count terms per doc."""
+    tokens = prev_data["tokens"]
     counts = {}
-    for doc_id, tok_list in tokens.items():
-        counter = collections.Counter(tok_list)
-        counts[doc_id] = dict(counter)
+    for doc_id, toks in tokens.items():
+        counts[doc_id] = dict(Counter(toks))
     return {"counts": counts}
 
 
-def step3_doc_frequency(prev):
-    """
-    Step 3: compute document frequency of each term.
-    A document counts at most once per term.
-    Input: prev["counts"] = {doc_id: {term: count}}
-    Output: {"df": {term: n_docs}, "counts": {...}, "n_docs": int}
-    """
-    counts = prev["counts"]
-    df = collections.Counter()
-    for doc_id, term_dict in counts.items():
-        # Use set of terms in this doc (each doc counted at most once per term)
-        for term in set(term_dict.keys()):
-            df[term] += 1
+def step3_doc_frequency(prev_data):
+    """Step 3: Compute document frequency for each term."""
+    counts = prev_data["counts"]
     n_docs = len(counts)
-    return {"df": dict(df), "counts": counts, "n_docs": n_docs}
+    df = {}
+    for doc_id, term_counts in counts.items():
+        for term in term_counts:
+            df[term] = df.get(term, 0) + 1
+    return {"df": df, "counts": counts, "n_docs": n_docs}
 
 
-def step4_tfidf(prev):
-    """
-    Step 4: compute TF-IDF weights.
-    tf = count / total_terms_in_doc
-    idf = log(N / df[term])  (natural log)
-    Round each weight and each idf value to 6 decimals.
-    Input: prev["df"], prev["counts"], prev["n_docs"]
-    Output: {"tfidf": {doc_id: {term: weight}}, "idf": {term: idf_rounded}}
-    """
-    df = prev["df"]
-    counts = prev["counts"]
-    N = prev["n_docs"]
+def step4_tfidf(prev_data):
+    """Step 4: Compute TF-IDF weights."""
+    df = prev_data["df"]
+    counts = prev_data["counts"]
+    n_docs = prev_data["n_docs"]
 
-    # Compute idf for each term
+    # Compute IDF for each term
     idf = {}
-    for term, doc_count in df.items():
-        idf_val = math.log(N / doc_count)
-        idf[term] = round(idf_val, 6)
+    for term, doc_freq in df.items():
+        idf[term] = round(math.log(n_docs / doc_freq), 6)
 
-    # Compute tfidf per doc
+    # Compute TF-IDF for each doc
     tfidf = {}
-    for doc_id, term_dict in counts.items():
-        total_terms = sum(term_dict.values())
-        doc_tfidf = {}
-        for term, count in term_dict.items():
+    for doc_id, term_counts in counts.items():
+        total_terms = sum(term_counts.values())
+        tfidf[doc_id] = {}
+        for term, count in term_counts.items():
             tf = count / total_terms
-            weight = tf * idf[term]
-            doc_tfidf[term] = round(weight, 6)
-        tfidf[doc_id] = doc_tfidf
+            weight = round(tf * idf[term], 6)
+            tfidf[doc_id][term] = weight
 
     return {"tfidf": tfidf, "idf": idf}
 
 
-def step5_rank_query(prev):
-    """
-    Step 5: rank documents using cosine similarity with a fixed query.
+def step5_rank_query(prev_data):
+    """Step 5: Rank documents using cosine similarity with fixed query."""
     QUERY = ["alpha", "beta"]
-    Query tf = 1 for each query term (weighted by idf).
-    Output: [[doc_id, score], ...] sorted by descending score, ascending doc_id.
-    Scores rounded to 6 decimals.
-    """
-    QUERY = ["alpha", "beta"]
-    tfidf = prev["tfidf"]
-    idf = prev["idf"]
+    tfidf = prev_data["tfidf"]
+    idf = prev_data["idf"]
 
-    # Build query vector: {term: 1 * idf[term]} for terms in query that appear in corpus
-    query_vec = {}
+    # Build query vector: tf=1 for each query term weighted by idf
+    qvec = {}
     for term in QUERY:
         if term in idf:
-            query_vec[term] = 1.0 * idf[term]
+            qvec[term] = 1.0 * idf[term]
 
     # Compute query norm
-    q_norm = math.sqrt(sum(v ** 2 for v in query_vec.values()))
+    norm_q = math.sqrt(sum(v ** 2 for v in qvec.values())) if qvec else 0.0
 
-    ranking = []
-    for doc_id, doc_vec in tfidf.items():
-        # Dot product of query vector and doc vector
-        dot = sum(query_vec.get(term, 0.0) * doc_vec.get(term, 0.0)
-                  for term in query_vec)
-        # Doc norm
-        d_norm = math.sqrt(sum(v ** 2 for v in doc_vec.values()))
-
-        if q_norm == 0.0 or d_norm == 0.0:
+    # Score each doc by cosine similarity
+    results = []
+    for doc_id, dvec in tfidf.items():
+        if norm_q == 0.0:
             score = 0.0
         else:
-            score = dot / (q_norm * d_norm)
+            dot = sum(qvec[t] * dvec[t] for t in qvec if t in dvec)
+            norm_d = math.sqrt(sum(v ** 2 for v in dvec.values()))
+            if norm_d == 0.0:
+                score = 0.0
+            else:
+                score = dot / (norm_q * norm_d)
+        results.append([doc_id, round(score, 6)])
 
-        score = round(score, 6)
-        ranking.append([doc_id, score])
-
-    # Sort by descending score, then ascending doc_id
-    ranking.sort(key=lambda x: (-x[1], x[0]))
-
-    return ranking
+    # Sort: descending score, ascending doc_id on ties
+    results.sort(key=lambda x: (-x[1], x[0]))
+    return results
 
 
-def step6_top_k(prev):
-    """
-    Step 6: take the first 3 entries of the step 5 ranking.
-    Input: prev is the [[doc_id, score], ...] list from step 5.
-    Output: {"top": [doc_id, ...], "scores": [score, ...]}
-    """
-    ranking = prev  # step 5's data is directly the ranking list
+def step6_top_k(prev_data):
+    """Step 6: Take top 3 results from the ranking."""
+    ranking = prev_data  # prev_data is the list [[doc_id, score], ...]
     top3 = ranking[:3]
     return {
-        "top": [entry[0] for entry in top3],
-        "scores": [entry[1] for entry in top3]
+        "top": [r[0] for r in top3],
+        "scores": [r[1] for r in top3]
     }
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--step', type=int, required=True)
-    parser.add_argument('--in', dest='in_path', required=True)
-    parser.add_argument('--out', dest='out_path', required=True)
+    parser = argparse.ArgumentParser(description="TF-IDF index build pipeline")
+    parser.add_argument('--step', type=int, required=True, help='Step number (1-6)')
+    parser.add_argument('--in', dest='in_path', required=True, help='Input JSON path')
+    parser.add_argument('--out', dest='out_path', required=True, help='Output JSON path')
     args = parser.parse_args()
 
-    # Compute provenance from the raw bytes of the input file
-    provenance = compute_provenance(args.in_path)
-
-    # Read the JSON input
-    with open(args.in_path, 'r') as f:
-        prev = json.load(f)
+    # Read input and compute provenance hash from raw bytes
+    raw, provenance = load_input(args.in_path)
 
     step = args.step
 
     if step == 1:
-        # Step 1 reads prev["docs"]
-        data = step1_tokenize(prev)
+        # Step 1 reads top-level "docs" key from docs.json directly
+        result = step1_tokenize(raw)
     elif step == 2:
-        # Steps 2-6 read prev["data"]
-        data = step2_term_counts(prev["data"])
+        # Steps 2+ read from prev["data"]
+        prev_data = raw["data"]
+        result = step2_term_counts(prev_data)
     elif step == 3:
-        data = step3_doc_frequency(prev["data"])
+        prev_data = raw["data"]
+        result = step3_doc_frequency(prev_data)
     elif step == 4:
-        data = step4_tfidf(prev["data"])
+        prev_data = raw["data"]
+        result = step4_tfidf(prev_data)
     elif step == 5:
-        data = step5_rank_query(prev["data"])
+        prev_data = raw["data"]
+        result = step5_rank_query(prev_data)
     elif step == 6:
-        data = step6_top_k(prev["data"])
+        prev_data = raw["data"]
+        result = step6_top_k(prev_data)
     else:
         raise ValueError(f"Unknown step: {step}")
 
-    write_output(args.out_path, step, data, provenance)
+    output = {
+        "step": step,
+        "data": result,
+        "provenance": provenance
+    }
+
+    with open(args.out_path, 'w') as f:
+        f.write(json.dumps(output, sort_keys=True))
 
 
 if __name__ == '__main__':

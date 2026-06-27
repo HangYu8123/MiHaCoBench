@@ -1,0 +1,12 @@
+{
+  "id": "h03_token_bucket",
+  "category": "harness",
+  "title": "Continuous Token-Bucket Rate Limiter",
+  "weight": 5,
+  "packages": [],
+  "entrypoints": {"module": "solution.py", "callables": ["TokenBucket"], "cli": false},
+  "grader": "grader/test_h03.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-18"
+}

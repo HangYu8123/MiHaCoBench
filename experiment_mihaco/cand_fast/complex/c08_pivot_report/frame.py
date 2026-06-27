@@ -1,10 +1,8 @@
-"""frame.py — build/validate the DataFrame."""
-
 import pandas as pd
 
 
-def build_frame(records: list) -> pd.DataFrame:
-    """Construct a pandas DataFrame from a list of row dicts.
+def build_frame(records: list[dict]) -> pd.DataFrame:
+    """Construct a DataFrame from a list of row dicts.
 
     Raises ValueError if records is empty.
     """

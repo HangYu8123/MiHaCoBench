@@ -1,0 +1,12 @@
+{
+  "id": "h06_replay_ledger",
+  "category": "harness",
+  "title": "Atomic Ledger Replay with Holds and Group Rollback",
+  "weight": 6,
+  "packages": [],
+  "entrypoints": {"module": "solution.py", "callables": ["replay"], "cli": false},
+  "grader": "grader/test_h06.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-18"
+}

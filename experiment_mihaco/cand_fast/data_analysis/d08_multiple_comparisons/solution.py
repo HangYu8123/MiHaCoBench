@@ -1,76 +1,86 @@
-import matplotlib
-matplotlib.use("Agg")
+"""
+solution.py — K-Group Comparison with Family-Wise Error Control (Holm-Bonferroni)
+"""
 
 import argparse
 import itertools
 import json
 import os
 
+import matplotlib
+matplotlib.use("Agg")  # must be before pyplot import; guards against missing MPLBACKEND
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import scipy.stats
+from scipy import stats
+
+
+class _NpEncoder(json.JSONEncoder):
+    """JSON encoder that handles numpy scalar types."""
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        return super().default(obj)
 
 
 def analyze(df: pd.DataFrame) -> dict:
-    """Analyze a K-group dataset with omnibus ANOVA and Holm-Bonferroni correction."""
+    """
+    Perform omnibus ANOVA + pairwise t-tests with Holm-Bonferroni correction.
 
-    # Group data
-    labels = sorted(df["group"].unique().tolist())
-    grouped = df.groupby("group")
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must contain columns 'group' (str) and 'value' (float).
 
-    # Group means (native Python float)
-    group_means = {label: float(grouped["value"].mean()[label]) for label in labels}
+    Returns
+    -------
+    dict with keys: group_means, n_per_group, anova_f, anova_p,
+                    omnibus_significant, pairs, n_significant_pairs
+    """
+    # --- Group summaries ---
+    labels = sorted(df["group"].unique())
+    grouped = {lbl: df.loc[df["group"] == lbl, "value"].values for lbl in labels}
 
-    # n_per_group (native Python int)
-    n_per_group = {label: int(grouped["value"].count()[label]) for label in labels}
+    group_means = {lbl: float(grouped[lbl].mean()) for lbl in labels}
+    n_per_group = {lbl: int(len(grouped[lbl])) for lbl in labels}
 
-    # Omnibus ANOVA using scipy.stats.f_oneway
-    group_arrays = [grouped.get_group(label)["value"].values for label in labels]
-    anova_result = scipy.stats.f_oneway(*group_arrays)
+    # --- Omnibus one-way ANOVA ---
+    arrays = [grouped[lbl] for lbl in labels]
+    anova_result = stats.f_oneway(*arrays)
     anova_f = float(anova_result.statistic)
     anova_p = float(anova_result.pvalue)
     omnibus_significant = bool(anova_p < 0.05)
 
-    # Pairwise t-tests
-    pair_keys = []
-    raw_pvalues = []
+    # --- Pairwise independent t-tests (equal_var=True = Student's t) ---
+    pair_keys = [f"{a}_vs_{b}" for a, b in itertools.combinations(labels, 2)]
+    raw_p_map = {}
+    for key in pair_keys:
+        a_lbl, b_lbl = key.split("_vs_")
+        t_result = stats.ttest_ind(grouped[a_lbl], grouped[b_lbl], equal_var=True)
+        raw_p_map[key] = float(t_result.pvalue)
 
-    for X, Y in itertools.combinations(labels, 2):
-        # labels is already sorted, so X < Y lexicographically
-        key = f"{X}_vs_{Y}"
-        a = grouped.get_group(X)["value"].values
-        b = grouped.get_group(Y)["value"].values
-        ttest_result = scipy.stats.ttest_ind(a, b, equal_var=True)
-        raw_p = float(ttest_result.pvalue)
-        pair_keys.append(key)
-        raw_pvalues.append(raw_p)
+    # --- Holm-Bonferroni step-down correction ---
+    m = len(pair_keys)  # 6
+    order = sorted(pair_keys, key=lambda k: raw_p_map[k])
+    adj_p_map = {}
+    prev = 0.0
+    for i, key in enumerate(order):
+        p = raw_p_map[key] * (m - i)
+        p = max(p, prev)       # enforce monotonicity
+        p = min(p, 1.0)        # cap at 1.0
+        adj_p_map[key] = p
+        prev = p
 
-    # Holm-Bonferroni step-down correction
-    m = len(raw_pvalues)  # number of comparisons = 6
-    # Sort ascending by raw p-value
-    sorted_indices = sorted(range(m), key=lambda i: raw_pvalues[i])
-
-    adj_pvalues = [0.0] * m
-    prev_adj = 0.0
-    for k, idx in enumerate(sorted_indices):
-        raw_p = raw_pvalues[idx]
-        adj_p = raw_p * (m - k)
-        # Enforce monotonicity: adj_p >= previous adjusted p
-        adj_p = max(adj_p, prev_adj)
-        # Cap at 1.0
-        adj_p = min(adj_p, 1.0)
-        adj_pvalues[idx] = adj_p
-        prev_adj = adj_p
-
-    # Build pairs dict
+    # --- Build pairs dict ---
     pairs = {}
-    for i, key in enumerate(pair_keys):
-        raw_p = raw_pvalues[i]
-        adj_p = adj_pvalues[i]
+    for key in pair_keys:
+        raw_p = raw_p_map[key]
+        adj_p = adj_p_map[key]
         pairs[key] = {
-            "raw_p": raw_p,
-            "adj_p": adj_p,
+            "raw_p": float(raw_p),
+            "adj_p": float(adj_p),
             "significant": bool(adj_p < 0.05),
         }
 
@@ -88,89 +98,76 @@ def analyze(df: pd.DataFrame) -> dict:
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="Multiple comparisons analysis")
-    parser.add_argument("--data", required=True, help="Path to CSV file")
-    parser.add_argument("--output-dir", required=True, help="Directory for output files")
+    """CLI entry point."""
+    parser = argparse.ArgumentParser(
+        description="K-group comparison with Holm-Bonferroni correction."
+    )
+    parser.add_argument("--data", required=True, help="Path to input CSV file.")
+    parser.add_argument("--output-dir", required=True, help="Directory for output files.")
     args = parser.parse_args(argv)
 
-    try:
-        df = pd.read_csv(args.data)
-        result = analyze(df)
+    # Read data
+    df = pd.read_csv(args.data)
 
-        os.makedirs(args.output_dir, exist_ok=True)
+    # Run analysis
+    result = analyze(df)
 
-        # Write results.json
-        results_path = os.path.join(args.output_dir, "results.json")
-        with open(results_path, "w") as f:
-            json.dump(result, f, indent=2)
+    # Ensure output directory exists
+    os.makedirs(args.output_dir, exist_ok=True)
 
-        # --- Bar chart of group means with error bars ---
-        labels = sorted(result["group_means"].keys())
-        means = [result["group_means"][label] for label in labels]
+    # --- Write results.json ---
+    json_path = os.path.join(args.output_dir, "results.json")
+    with open(json_path, "w") as f:
+        json.dump(result, f, cls=_NpEncoder, indent=2)
 
-        # Compute standard errors for error bars
-        grouped = df.groupby("group")["value"]
-        stds = [float(grouped.std()[label]) for label in labels]
-        ns = [result["n_per_group"][label] for label in labels]
-        sems = [s / np.sqrt(n) for s, n in zip(stds, ns)]
+    # --- Plot 1: Bar chart of group means with SEM error bars ---
+    labels = sorted(df["group"].unique())
+    means = pd.Series(result["group_means"])
+    sem = df.groupby("group")["value"].sem()
 
-        fig, ax = plt.subplots(figsize=(7, 5))
-        ax.bar(labels, means, yerr=sems, capsize=5, color="steelblue", alpha=0.8)
-        ax.set_xlabel("Group")
-        ax.set_ylabel("Mean value")
-        ax.set_title("Group Means with Standard Error")
-        fig.tight_layout()
-        bar_path = os.path.join(args.output_dir, "group_means_bar.png")
-        fig.savefig(bar_path)
-        plt.close(fig)
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.bar(labels, means.loc[labels], yerr=sem.loc[labels], capsize=5,
+           color="steelblue", alpha=0.8, edgecolor="black")
+    ax.set_xlabel("Group")
+    ax.set_ylabel("Mean value")
+    ax.set_title("Group Means with SEM Error Bars")
+    plt.tight_layout()
+    plt.savefig(os.path.join(args.output_dir, "group_means.png"), dpi=100)
+    plt.close()
 
-        # --- Heatmap of adjusted p-values ---
-        n_labels = len(labels)
-        # Build symmetric matrix; diagonal = NaN
-        matrix = np.full((n_labels, n_labels), np.nan)
-        label_idx = {label: i for i, label in enumerate(labels)}
+    # --- Plot 2: Heatmap of Holm-adjusted p-values ---
+    n = len(labels)
+    label_idx = {lbl: i for i, lbl in enumerate(labels)}
+    matrix = np.ones((n, n))  # diagonal = 1.0; off-diagonal filled below
 
-        for pair_key, pair_info in result["pairs"].items():
-            X, Y = pair_key.split("_vs_")
-            i = label_idx[X]
-            j = label_idx[Y]
-            matrix[i, j] = pair_info["adj_p"]
-            matrix[j, i] = pair_info["adj_p"]
+    for key, vals in result["pairs"].items():
+        a_lbl, b_lbl = key.split("_vs_")
+        i, j = label_idx[a_lbl], label_idx[b_lbl]
+        matrix[i, j] = vals["adj_p"]
+        matrix[j, i] = vals["adj_p"]  # symmetric
 
-        fig, ax = plt.subplots(figsize=(6, 5))
-        # Use masked array to handle NaN on diagonal
-        masked = np.ma.masked_invalid(matrix)
-        cmap = plt.cm.RdYlGn_r
-        im = ax.imshow(masked, vmin=0.0, vmax=1.0, cmap=cmap, aspect="auto")
-        plt.colorbar(im, ax=ax, label="Holm-Bonferroni adjusted p-value")
+    fig, ax = plt.subplots(figsize=(6, 5))
+    im = ax.imshow(matrix, vmin=0, vmax=1, cmap="viridis_r")
+    plt.colorbar(im, ax=ax, label="Holm-adjusted p-value")
 
-        ax.set_xticks(range(n_labels))
-        ax.set_yticks(range(n_labels))
-        ax.set_xticklabels(labels)
-        ax.set_yticklabels(labels)
-        ax.set_title("Pairwise Adjusted p-value Heatmap")
+    ax.set_xticks(range(n))
+    ax.set_yticks(range(n))
+    ax.set_xticklabels(labels)
+    ax.set_yticklabels(labels)
+    ax.set_title("Pairwise Holm-Adjusted p-values")
 
-        # Annotate cells
-        for i in range(n_labels):
-            for j in range(n_labels):
-                if not np.isnan(matrix[i, j]):
-                    val = matrix[i, j]
-                    text_color = "white" if val > 0.7 else "black"
-                    ax.text(j, i, f"{val:.3f}", ha="center", va="center",
-                            fontsize=9, color=text_color)
+    for i in range(n):
+        for j in range(n):
+            ax.text(j, i, f"{matrix[i, j]:.3f}",
+                    ha="center", va="center", fontsize=9,
+                    color="white" if matrix[i, j] < 0.5 else "black")
 
-        fig.tight_layout()
-        heatmap_path = os.path.join(args.output_dir, "pairwise_adj_p_heatmap.png")
-        fig.savefig(heatmap_path)
-        plt.close(fig)
+    plt.tight_layout()
+    plt.savefig(os.path.join(args.output_dir, "adj_p_heatmap.png"), dpi=100)
+    plt.close()
 
-        return 0
-
-    except Exception as e:
-        print(f"Error: {e}")
-        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    import sys
-    sys.exit(main())
+    raise SystemExit(main())

@@ -4,8 +4,8 @@
 pipeline of an AI coding system — not just raw model capability.**
 
 ![Python](https://img.shields.io/badge/python-3.11.x-blue)
-![Tasks](https://img.shields.io/badge/tasks-79-success)
-![Categories](https://img.shields.io/badge/categories-10-informational)
+![Tasks](https://img.shields.io/badge/tasks-75-success)
+![Categories](https://img.shields.io/badge/categories-11-informational)
 ![Self-check](https://img.shields.io/badge/self--check-passing-brightgreen)
 
 > The source code and [`RUBRIC.md`](RUBRIC.md) brand the suite internally as
@@ -15,7 +15,12 @@ pipeline of an AI coding system — not just raw model capability.**
 > **21 additional hard tasks were added on 2026-06-16** — 14 spec-density/multi-file
 > tasks plus a 7-task *tier-2* batch (hard complexity gates, a large reactive system,
 > and subtle boundary-ambiguity tasks) built to break single-shot agents
-> (see _"Distinguishing harnesses"_ below).
+> (see _"Distinguishing harnesses"_ below). On **2026-06-17** the suite was
+> **simplified**: 17 always-tie / redundant tasks were removed and 7
+> *failure-frontier* tasks were added — observation-heavy algorithms, a
+> numerical-stability (catastrophic-cancellation) trap, a cumulative-state
+> long-horizon ledger, a cross-module "evolution" bug, and more boundary
+> ambiguity — bringing the total to **69** (see `experiment_mihaco/SIMPLIFICATION_PROPOSAL.md`).
 
 ---
 
@@ -36,32 +41,49 @@ DS-1000, LiveCodeBench, BigO(Bench),** and **TheAgentCompany**.
 
 ## What it measures
 
-**79 tasks across ten categories**, each stressing a different ability of a coding
-harness. Tasks are **weighted** when aggregating so a harness cannot inflate its
-score by acing only the easy ones.
+The **ten core categories** below each stress a different ability of a coding
+harness, **plus an experimental `harness` category of 5 tasks** (the runner now
+discovers 75 task manifests in total). Tasks are **weighted** when aggregating so a
+harness cannot inflate its score by acing only the easy ones.
 
 | Category | Count | What it probes | Per-task weight |
 |---|---|---|---|
-| `easy` | 6 | single-file (~100 LOC), stdlib/≤4 packages — baseline competence | 1 |
+| `easy` | 3 | single-file (~100 LOC), stdlib/≤4 packages — baseline competence | 1 |
 | `complex` | 9 | multi-file / multi-class systems (gold ≈400–800 LOC) using a large package (SQLAlchemy, jinja2, networkx, pandas) | 5 |
-| `data_analysis` | 8 | load → analyse → **correct statistics** → **visualise** | 3 |
-| `algorithmic` | 9 | time / space **complexity** + readability (1 easy, 2 medium, 6 hard) | 2 / 4 / 8 |
-| `long_horizon` | 12 | dependency chains of 2–20 steps — a wrong early step **cascades** | steps / 2 |
-| `ml` | 6 | scikit-learn tasks — held-out, leakage-resistant | 3 |
-| `debug` | 7 | fix a planted bug in given code (SWE-bench FAIL_TO_PASS / PASS_TO_PASS) — fault localization without regressions | 2 |
-| `swe_bench` | 8 | **multi-file** mini-repo fault localization — fix a bug whose symptom crosses a module boundary, FAIL_TO_PASS + PASS_TO_PASS, grader loads ≥2 modules (SWE-bench style) | 6 |
-| `compositional` | 8 | compose ≥2 (often ≥3) libraries under a precise contract with full **exception-path** coverage + surface-form checks (BigCodeBench style) | 4 |
-| `competitive` | 6 | contest-level algorithms with a **hard complexity gate** + adversarial inputs; novel/twisted to resist contamination (LiveCodeBench / APPS style) | 8 |
+| `data_analysis` | 6 | load → analyse → **correct statistics** → **visualise** | 3 |
+| `algorithmic` | 9 | time / space **complexity** + readability (2 medium, 7 hard) | 4 / 8 |
+| `long_horizon` | 7 | dependency chains of 2–20 steps — a wrong early step **cascades** | steps / 2 |
+| `ml` | 4 | scikit-learn tasks — held-out, leakage-resistant | 3 |
+| `debug` | 4 | fix a planted bug in given code (SWE-bench FAIL_TO_PASS / PASS_TO_PASS) — fault localization without regressions | 2 |
+| `swe_bench` | 9 | **multi-file** mini-repo fault localization — fix a bug whose symptom crosses a module boundary, FAIL_TO_PASS + PASS_TO_PASS, grader loads ≥2 modules (SWE-bench style) | 6 |
+| `compositional` | 10 | compose ≥2 (often ≥3) libraries under a precise contract with full **exception-path** coverage + surface-form checks (BigCodeBench style) | 4 |
+| `competitive` | 8 | contest-level algorithms with a **hard complexity gate** + adversarial inputs; novel/twisted to resist contamination (LiveCodeBench / APPS style) | 8 |
+| `harness` *(experimental)* | 5 | broad, from-scratch **implementation features** (expression evaluator, unicode normalizer, ledger engine, SQL engine, transactional KV store) built to fail a single shot — see status note below | 4–6 |
 
 Example task ids: `easy/e01_csv_pulse`, `complex/c01_job_queue_sqla`,
 `data_analysis/d05_experiment_anova`, `algorithmic/a04_edit_distance`,
-`long_horizon/lh10_mega_etl`, `ml/m03_clustering`, `debug/dbg02_resolve_order`,
+`long_horizon/lh10_mega_etl`, `ml/m01_tabular_classification`, `debug/dbg02_resolve_order`,
 `swe_bench/swe02_mini_orm`, `compositional/cb02_workflow_dag`,
 `competitive/cp04_tree_distance`. The 2026-06-16 hard expansion added, among
 others, `swe_bench/swe08_money_rounding` (per-line tax rounding bug crossing a
 module boundary), `complex/c07_migration_runner` (SQLAlchemy migration ordering),
 `data_analysis/d07_paired_design` (paired-vs-unpaired t-test trap), and
-`long_horizon/lh12_budget_forecast` (8-step forecast cascade).
+`long_horizon/lh12_budget_forecast` (8-step forecast cascade). The 2026-06-17
+simplification added `competitive/cp07_path_xor_sum` (observation-heavy tree-XOR
+with an O(n²) time gate), `compositional/cb09_streaming_covariance`
+(catastrophic-cancellation trap), `long_horizon/lh13_quota_ledger`
+(cumulative-budget cascade), and `swe_bench/swe09_evolve_ttl_index` (cross-module
+index-consistency bug).
+
+> **The `harness` category (experimental, 2026-06-18).** Five broad
+> implementation tasks (`h04_expr_eval`, `h05_normalize_lines`,
+> `h06_replay_ledger`, `h07_minisql`, `h08_txnkv`) authored to fail a single,
+> no-tools shot. **Empirical finding:** at the **Opus 4.8** tier they do **not** —
+> naive single-pass Opus 4.8 scored a strict 100% on all five (and on 7 further
+> probes, fuzz-confirmed), so each is currently a **guaranteed naive-vs-harness
+> tie**. They are retained as a difficulty ceiling / weaker-harness discriminators.
+> Full method + evidence: [`experiment_mihaco/results/HARNESS_CATEGORY.md`](experiment_mihaco/results/HARNESS_CATEGORY.md)
+> and [`experiment_mihaco/HARNESS_CATEGORY_RUNBOOK.md`](experiment_mihaco/HARNESS_CATEGORY_RUNBOOK.md).
 
 See [`RUBRIC.md`](RUBRIC.md) for the authoritative, per-category grading methodology.
 
@@ -116,7 +138,7 @@ actually *fails*:
 1. **Grader integrity (SWE-bench style).** Every grader must **pass** on a hidden
    *gold* reference and **fail** on a deliberately-*broken* reference. A task with no
    broken variant, or whose grader passes the broken one, is reported INVALID.
-   `run_benchmark.py` (default mode) verifies this for all 79 tasks — it is the
+   `run_benchmark.py` (default mode) verifies this for all 69 tasks — it is the
    benchmark's own correctness test.
 2. **Isolation.** Gold and broken references live under `_solutions/`, a tree
    entirely separate from `tasks/`. A real evaluation gives the agent only
@@ -238,17 +260,17 @@ candidate_solutions/
 **Example output** (trimmed):
 
 ```
-SELF-CHECK — validating 79 graders (must PASS on gold, FAIL on broken)
+SELF-CHECK — validating 69 graders (must PASS on gold, FAIL on broken)
 
   [PASS] easy          e01_csv_pulse            gold 11/11 broken 9/11
   ...
-SELF-CHECK: 79/79 graders valid.
+SELF-CHECK: 69/69 graders valid.
 ```
 
 ```
 EVALUATE — candidate root: /path/to/candidate_solutions
   ...
-  TOTAL strict 79/79   weighted-partial 1.000
+  TOTAL strict 69/69   weighted-partial 1.000
   Wrote /…/results.json
 ```
 
@@ -385,7 +407,7 @@ For each task the runner records:
   so easy tasks cannot dominate the total.
 
 `--candidate-root` writes [`results.json`](results.json) with each task's
-`passed/total/partial/strict`, per-category totals, `strict_total` (e.g. `79/79`),
+`passed/total/partial/strict`, per-category totals, `strict_total` (e.g. `69/69`),
 and the overall `weighted_partial`.
 
 Readability (`grading_utils.code_quality_report`) and the empirical Big-O fit
@@ -393,7 +415,7 @@ Readability (`grading_utils.code_quality_report`) and the empirical Big-O fit
 gating. Complexity is *enforced by feasibility*: a wrong-complexity solution
 physically times out on a large adversarial input.
 
-> **Note on the committed `results.json`.** Its scores (79/79 strict,
+> **Note on the committed `results.json`.** Its scores (69/69 strict,
 > `weighted_partial = 1.0`) come from pointing `--candidate-root` at the **gold
 > `_solutions/` tree itself** — a sanity baseline confirming the graders accept the
 > reference solutions. It is **not** an independent agent result, and its
@@ -424,6 +446,32 @@ physically times out on a large adversarial input.
 * `.github/HarnessFlow/` — the **HarnessFlow** agentic-workflow pack used to develop
   and maintain this repo (workflows, agents, skills). It is tooling, not part of the
   benchmark under test.
+
+## Agentic benchmark (ponytail-aligned)
+
+Alongside the correctness suite above, the repo ships a second, **additive** harness under
+[`benchmarks/agentic/`](benchmarks/agentic/) that ports the agentic *minimalism / over-engineering*
+benchmark from [ponytail](https://github.com/DietrichGebert/ponytail) (MIT). Where the correctness
+suite grades a candidate's `solution.py` pass/fail, this one runs a real headless `claude` Code session
+per (task × arm × model) on a seeded starter file and measures **whether a harness keeps code minimal
+without dropping safety or completeness**.
+
+* **Tasks (27 self-contained):** a *safety* tier (7 surgical "implement this function" tasks with an
+  implicit safety requirement, executed against adversarial input — path traversal, per-key rate-limit
+  DoS, SQL injection, HMAC verification, malformed-CSV robustness, caching, newline-injection email),
+  `todo-null` (a Node REST API that must survive a `null` POST), a *quality* tier (4 reuse/trace-before-fix
+  tasks), and *open* (3) + *vibe* (12) LOC-only tasks. The upstream real-repo fastapi fixture tier is
+  omitted (see the subsystem README to restore it).
+* **Metrics (ponytail-identical):** `correct` + `safe` deterministic gates · source LOC / source file
+  count (tests excluded, tracked separately) · cost / tokens / duration / turns from the CLI JSON · an
+  auditable **over-engineering** LLM judge (0–3) and a **completeness** LLM judge (0–3).
+* **Integrity, offline:** every instrument ships a `good`/`bad` reference proven before any API spend —
+  `python benchmarks/agentic/run.py --selftest` (good passes / bad caught for all 27) and
+  `python benchmarks/agentic/complete.py --selftest-offline` (gate logic, no key) both run with no API.
+
+See [`benchmarks/agentic/README.md`](benchmarks/agentic/README.md) for the full task tables, metric
+definitions, arm matrix, and run commands. This harness is independent of `run_benchmark.py` and does
+not affect the correctness suite's discovery or scoring.
 
 ## License
 

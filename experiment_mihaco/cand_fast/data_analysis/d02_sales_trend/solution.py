@@ -1,43 +1,43 @@
 """
-Data Analysis 02 — sales_trend: Monthly Sales Trend Analysis
+solution.py — Monthly Sales Trend Analysis (d02_sales_trend)
 """
+from __future__ import annotations
 
 import argparse
 import json
 import os
 import sys
-from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from scipy.stats import f_oneway, pearsonr
+import scipy.stats
 
 
 def analyze(df: pd.DataFrame) -> dict:
-    """
-    Perform three analyses on the dataframe and return a dict with exactly 9 keys.
-    """
+    """Perform linear trend, seasonal ANOVA, and price-units correlation analyses."""
+
     # --- Linear trend of units over time ---
-    x = df["month_index"].values
-    y = df["units"].values
+    x = df["month_index"].to_numpy(dtype=float)
+    y = df["units"].to_numpy(dtype=float)
 
     coeffs = np.polyfit(x, y, 1)
     slope = float(coeffs[0])
     intercept = float(coeffs[1])
 
-    # Compute R² manually
-    y_pred = np.polyval(coeffs, x)
-    SS_res = float(np.sum((y - y_pred) ** 2))
+    y_hat = np.polyval(coeffs, x)
+    SS_res = float(np.sum((y - y_hat) ** 2))
     SS_tot = float(np.sum((y - y.mean()) ** 2))
+
+    # Guard against degenerate case where all units are identical
     if SS_tot == 0:
         r_squared = 1.0
     else:
-        r_squared = float(1.0 - SS_res / SS_tot)
+        r_squared = float(1 - SS_res / SS_tot)
 
-    # trend_direction: strict inequalities
     if slope > 0.1:
         trend_direction = "up"
     elif slope < -0.1:
@@ -46,16 +46,21 @@ def analyze(df: pd.DataFrame) -> dict:
         trend_direction = "flat"
 
     # --- Seasonal ANOVA ---
-    groups = [g["units"].values for _, g in df.groupby("month_of_year")]
-    f_stat, anova_p_val = f_oneway(*groups)
-    anova_F = float(f_stat)
-    anova_p = float(anova_p_val)
+    groups = df.groupby("month_of_year")["units"].apply(list)
+    anova_result = scipy.stats.f_oneway(*groups)
+    anova_F = float(anova_result.statistic)
+    anova_p = float(anova_result.pvalue)
     seasonal_significant = bool(anova_p < 0.05)
 
-    # --- Price–units correlation ---
-    r_val, p_val = pearsonr(df["price"].values, df["units"].values)
-    pearson_price_units = float(r_val)
-    pearson_p = float(p_val)
+    # --- Price–units Pearson correlation ---
+    pearson_result = scipy.stats.pearsonr(df["price"], df["units"])
+    # Support both scipy >= 1.9 (PearsonRResult) and older scipy (2-tuple)
+    try:
+        pearson_price_units = float(pearson_result.statistic)
+        pearson_p = float(pearson_result.pvalue)
+    except AttributeError:
+        pearson_price_units = float(pearson_result[0])
+        pearson_p = float(pearson_result[1])
 
     return {
         "slope": slope,
@@ -70,65 +75,58 @@ def analyze(df: pd.DataFrame) -> dict:
     }
 
 
-def main(argv=None) -> int:
+def main(argv: Optional[list] = None) -> int:
     """CLI entry point."""
-    parser = argparse.ArgumentParser(
-        description="Monthly Sales Trend Analysis"
-    )
+    parser = argparse.ArgumentParser(description="Monthly sales trend analysis")
     parser.add_argument("--data", required=True, help="Path to sales CSV file")
-    parser.add_argument("--output-dir", required=True, help="Output directory for results")
+    parser.add_argument("--output-dir", required=True, help="Directory for output files")
     args = parser.parse_args(argv)
 
-    # Read data
+    output_dir = args.output_dir
+    os.makedirs(output_dir, exist_ok=True)
+
     df = pd.read_csv(args.data)
-
-    # Ensure output directory exists
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Run analysis
     results = analyze(df)
 
-    # Write results.json
-    results_path = output_dir / "results.json"
-    with open(results_path, "w") as f:
+    # Write results.json — all values already Python native types
+    with open(os.path.join(output_dir, "results.json"), "w") as f:
         json.dump(results, f)
 
-    # --- Plot 1: Scatter of units vs month_index with trend line ---
-    x = df["month_index"].values
-    y = df["units"].values
+    # --- Plot 1: trend.png — scatter units vs month_index + polyfit line ---
+    x = df["month_index"].to_numpy(dtype=float)
+    y = df["units"].to_numpy(dtype=float)
     coeffs = np.polyfit(x, y, 1)
+    x_line = np.linspace(x.min(), x.max(), 200)
+    y_line = np.polyval(coeffs, x_line)
 
     fig, ax = plt.subplots()
-    ax.scatter(x, y, label="units", alpha=0.7)
-    ax.plot(x, np.polyval(coeffs, x), color="red", label="trend line")
-    ax.set_xlabel("month_index")
-    ax.set_ylabel("units")
-    ax.set_title("Units vs Month Index with Trend Line")
+    ax.scatter(x, y, label="Observed units", alpha=0.7)
+    ax.plot(x_line, y_line, color="red", label="Trend line")
+    ax.set_xlabel("Month Index")
+    ax.set_ylabel("Units")
+    ax.set_title("Units vs Month Index (Trend)")
     ax.legend()
-    fig.savefig(output_dir / "units_vs_month_index.png")
+    fig.savefig(os.path.join(output_dir, "trend.png"))
     plt.close(fig)
 
-    # --- Plot 2: Bar chart of mean units per month_of_year ---
-    monthly_mean = df.groupby("month_of_year")["units"].mean()
-    months = monthly_mean.index.values
-    means = monthly_mean.values
+    # --- Plot 2: seasonal.png — bar chart of mean units per month_of_year ---
+    seasonal_means = df.groupby("month_of_year")["units"].mean()
 
     fig, ax = plt.subplots()
-    ax.bar(months, means)
-    ax.set_xlabel("month_of_year")
-    ax.set_ylabel("mean units")
-    ax.set_title("Mean Units per Month of Year (Seasonal Profile)")
-    fig.savefig(output_dir / "seasonal_profile.png")
+    ax.bar(seasonal_means.index, seasonal_means.values)
+    ax.set_xlabel("Month of Year")
+    ax.set_ylabel("Mean Units")
+    ax.set_title("Mean Units by Month of Year (Seasonal Profile)")
+    fig.savefig(os.path.join(output_dir, "seasonal.png"))
     plt.close(fig)
 
-    # --- Plot 3: Scatter of price vs units ---
+    # --- Plot 3: correlation.png — scatter price vs units ---
     fig, ax = plt.subplots()
-    ax.scatter(df["price"].values, df["units"].values, alpha=0.7)
-    ax.set_xlabel("price")
-    ax.set_ylabel("units")
+    ax.scatter(df["price"], df["units"], alpha=0.7)
+    ax.set_xlabel("Price")
+    ax.set_ylabel("Units")
     ax.set_title("Price vs Units")
-    fig.savefig(output_dir / "price_vs_units.png")
+    fig.savefig(os.path.join(output_dir, "correlation.png"))
     plt.close(fig)
 
     return 0

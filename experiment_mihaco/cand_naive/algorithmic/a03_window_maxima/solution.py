@@ -2,8 +2,9 @@ from collections import deque
 
 
 def window_maxima(nums: list[int], k: int) -> list[int]:
-    """
-    Compute the maximum value in each sliding window of size k using a monotonic deque.
+    """Return the maximum of each sliding window of size k over nums.
+
+    Uses a monotonic deque to achieve O(n) time and O(k) space.
 
     Parameters
     ----------
@@ -15,7 +16,7 @@ def window_maxima(nums: list[int], k: int) -> list[int]:
     Returns
     -------
     list[int]
-        List of length len(nums) - k + 1 containing the maximum in each window.
+        List of length len(nums) - k + 1 containing window maxima.
 
     Raises
     ------
@@ -30,24 +31,25 @@ def window_maxima(nums: list[int], k: int) -> list[int]:
     if k > n:
         return []
 
-    # Deque stores indices; front always holds index of the max element in the current window.
-    # Elements in the deque are maintained in decreasing order of their nums values.
+    # Monotonic deque stores indices of elements in decreasing order of value.
+    # Front of deque is always the index of the current window's maximum.
     dq: deque[int] = deque()
     result: list[int] = []
 
     for i in range(n):
-        # Remove indices that are out of the current window's left boundary.
+        # Remove indices that are no longer in the window (left boundary expired)
         while dq and dq[0] < i - k + 1:
             dq.popleft()
 
-        # Remove indices from the back whose corresponding values are <= nums[i].
-        # They can never be the maximum while nums[i] is in the window.
+        # Maintain decreasing monotonic order: remove all indices whose
+        # corresponding values are <= nums[i], since they can never be
+        # the maximum for any future window while nums[i] is still in range.
         while dq and nums[dq[-1]] <= nums[i]:
             dq.pop()
 
         dq.append(i)
 
-        # Start recording results once the first full window is complete.
+        # Once we have processed at least k elements, record the maximum
         if i >= k - 1:
             result.append(nums[dq[0]])
 

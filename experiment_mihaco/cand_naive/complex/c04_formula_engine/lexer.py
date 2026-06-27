@@ -1,192 +1,149 @@
 """
-lexer.py — Tokenizer for the spreadsheet formula language.
+lexer.py — Tokenizer for the mini spreadsheet formula language.
 """
 
 import re
 from enum import Enum, auto
-from typing import List, NamedTuple
 
 
-class TokenType(Enum):
-    NUMBER = auto()
-    STRING = auto()       # double-quoted string literal
-    CELL_REF = auto()     # e.g. A1, B2, AA10
-    RANGE = auto()        # e.g. A1:B3
-    FUNC = auto()         # SUM, AVG, MIN, MAX, IF
-    PLUS = auto()
-    MINUS = auto()
-    STAR = auto()
-    SLASH = auto()
-    CARET = auto()
-    LPAREN = auto()
-    RPAREN = auto()
-    COMMA = auto()
-    EQ = auto()           # = (comparison inside IF)
-    NEQ = auto()          # <>
-    LT = auto()           # <
-    LTE = auto()          # <=
-    GT = auto()           # >
-    GTE = auto()          # >=
-    EOF = auto()
+class TType(Enum):
+    NUMBER   = auto()
+    STRING   = auto()   # double-quoted string literal
+    REF      = auto()   # cell reference like A1, AA10
+    RANGE    = auto()   # A1:B3
+    FUNC     = auto()   # SUM, AVG, MIN, MAX, IF
+    PLUS     = auto()
+    MINUS    = auto()
+    STAR     = auto()
+    SLASH    = auto()
+    CARET    = auto()
+    LPAREN   = auto()
+    RPAREN   = auto()
+    COMMA    = auto()
+    EQ       = auto()   # =   (comparison inside IF)
+    NEQ      = auto()   # <>
+    LT       = auto()   # <
+    LE       = auto()   # <=
+    GT       = auto()   # >
+    GE       = auto()   # >=
+    EOF      = auto()
 
 
-class Token(NamedTuple):
-    type: TokenType
-    value: object  # str | float
+class Token:
+    __slots__ = ("type", "value")
+
+    def __init__(self, type_: TType, value):
+        self.type = type_
+        self.value = value
+
+    def __repr__(self):
+        return f"Token({self.type}, {self.value!r})"
 
 
-FUNCTIONS = {"SUM", "AVG", "MIN", "MAX", "IF"}
+_FUNCTIONS = {"SUM", "AVG", "MIN", "MAX", "IF"}
 
-# Regex patterns (order matters)
-_TOKEN_RE = re.compile(
-    r"""
-    (?P<NUMBER>  -?(?:\d+\.\d*|\.\d+|\d+)  )   |  # number (int or float)
-    "(?P<STRING> [^"]*                      )"  |  # double-quoted string
-    (?P<FUNCREF> [A-Z]+(?:\d+:[A-Z]+\d+|(?=\())? )  |  # func name or cell ref
-    (?P<NEQ>     <>                         )   |
-    (?P<LTE>     <=                         )   |
-    (?P<GTE>     >=                         )   |
-    (?P<LT>      <                          )   |
-    (?P<GT>      >                          )   |
-    (?P<EQ>      =                          )   |
-    (?P<PLUS>    \+                         )   |
-    (?P<MINUS>   -                          )   |
-    (?P<STAR>    \*                         )   |
-    (?P<SLASH>   /                          )   |
-    (?P<CARET>   \^                         )   |
-    (?P<LPAREN>  \(                         )   |
-    (?P<RPAREN>  \)                         )   |
-    (?P<COMMA>   ,                          )   |
-    (?P<WS>      \s+                        )       # whitespace to skip
-    """,
-    re.VERBOSE,
-)
-
-# Better pattern — split out cell range vs cell ref vs function name
-_RANGE_RE = re.compile(r'^([A-Z]+\d+):([A-Z]+\d+)$')
-_CELLREF_RE = re.compile(r'^[A-Z]+\d+$')
+# Regex pieces
+_NUM_RE  = re.compile(r"-?(?:\d+\.?\d*|\.\d+)")
+_REF_RE  = re.compile(r"([A-Z]+)(\d+)")
+_FUNC_RE = re.compile(r"[A-Z]+")
+_STR_RE  = re.compile(r'"([^"]*)"')
 
 
-def tokenize(formula: str) -> List[Token]:
+def tokenize(formula: str) -> list[Token]:
     """
-    Tokenize a formula string (without the leading '=').
-    Returns a list of Token objects terminated by EOF.
+    Tokenize a formula string (with the leading '=' already stripped).
+    Returns a list of Token objects ending with TType.EOF.
     """
-    tokens: List[Token] = []
-    pos = 0
+    tokens: list[Token] = []
+    i = 0
     n = len(formula)
 
-    while pos < n:
+    while i < n:
+        c = formula[i]
+
         # Skip whitespace
-        if formula[pos].isspace():
-            pos += 1
+        if c in " \t\r\n":
+            i += 1
             continue
 
-        # Try to match a double-quoted string
-        if formula[pos] == '"':
-            end = formula.find('"', pos + 1)
-            if end == -1:
-                raise SyntaxError(f"Unterminated string at position {pos}")
-            tokens.append(Token(TokenType.STRING, formula[pos + 1:end]))
-            pos = end + 1
-            continue
+        # Double-quoted string literal
+        if c == '"':
+            m = _STR_RE.match(formula, i)
+            if m:
+                tokens.append(Token(TType.STRING, m.group(1)))
+                i = m.end()
+                continue
+            raise SyntaxError(f"Unterminated string at position {i}")
 
-        # Two-char operators
-        two = formula[pos:pos+2]
-        if two == '<>':
-            tokens.append(Token(TokenType.NEQ, '<>'))
-            pos += 2
-            continue
-        if two == '<=':
-            tokens.append(Token(TokenType.LTE, '<='))
-            pos += 2
-            continue
-        if two == '>=':
-            tokens.append(Token(TokenType.GTE, '>='))
-            pos += 2
-            continue
+        # Number (may start with '-' only if not preceded by a number/ref token)
+        # We handle unary minus in the parser; here only tokenize positive numbers
+        # and let the parser deal with '-' as unary.
+        if c.isdigit() or (c == '.' and i + 1 < n and formula[i+1].isdigit()):
+            m = re.compile(r"\d+\.?\d*|\.\d+").match(formula, i)
+            if m:
+                tokens.append(Token(TType.NUMBER, float(m.group())))
+                i = m.end()
+                continue
 
-        # Single-char operators/punctuation
-        c = formula[pos]
-        single_map = {
-            '+': TokenType.PLUS,
-            '-': TokenType.MINUS,
-            '*': TokenType.STAR,
-            '/': TokenType.SLASH,
-            '^': TokenType.CARET,
-            '(': TokenType.LPAREN,
-            ')': TokenType.RPAREN,
-            ',': TokenType.COMMA,
-            '<': TokenType.LT,
-            '>': TokenType.GT,
-            '=': TokenType.EQ,
-        }
-        if c in single_map:
-            tokens.append(Token(single_map[c], c))
-            pos += 1
-            continue
-
-        # Number: optional minus then digits/dot
-        num_match = re.match(r'-?(?:\d+\.\d*|\.\d+|\d+)', formula[pos:])
-        if num_match and (c.isdigit() or (c == '-' and pos + 1 < n and formula[pos+1].isdigit())):
-            tokens.append(Token(TokenType.NUMBER, float(num_match.group())))
-            pos += len(num_match.group())
-            continue
-
-        # Identifier: uppercase letters then possibly digits (cell ref or function name)
-        # Also handle ranges like A1:B3
+        # Identifiers: functions or cell references
         if c.isupper():
-            # Greedily read letters
-            letters_end = pos
-            while letters_end < n and formula[letters_end].isupper():
-                letters_end += 1
-            word = formula[pos:letters_end]
-
-            # Check if it's a known function
-            if word in FUNCTIONS and letters_end < n and formula[letters_end] == '(':
-                tokens.append(Token(TokenType.FUNC, word))
-                pos = letters_end
+            # Try function name first (must not be followed by digits directly meaning ref)
+            m = _FUNC_RE.match(formula, i)
+            word = m.group() if m else ""
+            # Check if it's a cell reference (letters followed immediately by digits)
+            ref_m = _REF_RE.match(formula, i)
+            if ref_m and ref_m.group() == word + ref_m.group(2):
+                # It IS a cell reference
+                ref_str = ref_m.group()
+                j = ref_m.end()
+                # Check for range A1:B3
+                if j < n and formula[j] == ':':
+                    ref2_m = _REF_RE.match(formula, j + 1)
+                    if ref2_m:
+                        range_str = ref_str + ':' + ref2_m.group()
+                        tokens.append(Token(TType.RANGE, range_str))
+                        i = ref2_m.end()
+                        continue
+                tokens.append(Token(TType.REF, ref_str))
+                i = j
                 continue
-
-            # Read digits for cell ref
-            digits_end = letters_end
-            while digits_end < n and formula[digits_end].isdigit():
-                digits_end += 1
-            cell_ref = formula[pos:digits_end]
-
-            # Check for range: A1:B3
-            if digits_end < n and formula[digits_end] == ':':
-                # Try to read second cell ref
-                colon_pos = digits_end
-                letters2_end = colon_pos + 1
-                while letters2_end < n and formula[letters2_end].isupper():
-                    letters2_end += 1
-                digits2_end = letters2_end
-                while digits2_end < n and formula[digits2_end].isdigit():
-                    digits2_end += 1
-                cell_ref2 = formula[colon_pos + 1:digits2_end]
-                if _CELLREF_RE.match(cell_ref) and _CELLREF_RE.match(cell_ref2):
-                    tokens.append(Token(TokenType.RANGE, f"{cell_ref}:{cell_ref2}"))
-                    pos = digits2_end
-                    continue
-
-            # It's a cell reference
-            if _CELLREF_RE.match(cell_ref):
-                tokens.append(Token(TokenType.CELL_REF, cell_ref))
-                pos = digits_end
+            # It's a function/keyword
+            if word in _FUNCTIONS:
+                tokens.append(Token(TType.FUNC, word))
+                i += len(word)
                 continue
+            raise SyntaxError(f"Unknown identifier '{word}' at position {i}")
 
-            raise SyntaxError(f"Unexpected identifier '{word}' at position {pos}")
+        # Operators and punctuation
+        if formula[i:i+2] == '<>':
+            tokens.append(Token(TType.NEQ, '<>'))
+            i += 2; continue
+        if formula[i:i+2] == '<=':
+            tokens.append(Token(TType.LE, '<='))
+            i += 2; continue
+        if formula[i:i+2] == '>=':
+            tokens.append(Token(TType.GE, '>='))
+            i += 2; continue
 
-        # Number starting with digit (no leading minus)
-        if c.isdigit():
-            num_match2 = re.match(r'\d+\.\d*|\d+', formula[pos:])
-            if num_match2:
-                tokens.append(Token(TokenType.NUMBER, float(num_match2.group())))
-                pos += len(num_match2.group())
-                continue
+        _single = {
+            '+': TType.PLUS,
+            '-': TType.MINUS,
+            '*': TType.STAR,
+            '/': TType.SLASH,
+            '^': TType.CARET,
+            '(': TType.LPAREN,
+            ')': TType.RPAREN,
+            ',': TType.COMMA,
+            '=': TType.EQ,
+            '<': TType.LT,
+            '>': TType.GT,
+        }
+        if c in _single:
+            tokens.append(Token(_single[c], c))
+            i += 1
+            continue
 
-        raise SyntaxError(f"Unexpected character {c!r} at position {pos}")
+        raise SyntaxError(f"Unexpected character '{c}' at position {i}")
 
-    tokens.append(Token(TokenType.EOF, None))
+    tokens.append(Token(TType.EOF, None))
     return tokens

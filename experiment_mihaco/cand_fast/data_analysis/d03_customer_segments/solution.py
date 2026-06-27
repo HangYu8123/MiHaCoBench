@@ -1,176 +1,133 @@
 """
-Customer Segmentation using KMeans Clustering.
-
-Public contract:
-    analyze(df) -> dict
-    main(argv=None) -> int
+KMeans Customer Segmentation — solution.py
 """
+from __future__ import annotations
 
 import argparse
 import json
 import os
-import sys
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
-from sklearn.metrics import silhouette_score
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
 from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+from sklearn.decomposition import PCA
 
 
 def analyze(df: pd.DataFrame) -> dict:
-    """
-    Perform KMeans customer segmentation on the given DataFrame.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame with columns 'recency', 'frequency', 'monetary'.
-
-    Returns
-    -------
-    dict with keys:
-        best_k (int): k with the highest silhouette score
-        silhouette (float): Silhouette score for best_k
-        inertia_by_k ({str: float}): KMeans inertia for k in 2..6
-        cluster_sizes (list[int]): Cluster membership counts for best_k, descending
-    """
-    # Step 1: Standardize the three features
+    """Perform KMeans customer segmentation on the RFM DataFrame."""
+    # Step 1: Standardize features
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(df[['recency', 'frequency', 'monetary']])
+    X_scaled = scaler.fit_transform(df[["recency", "frequency", "monetary"]])
 
-    # Steps 2 & 3: Run KMeans for each k and compute silhouette scores
-    inertia_by_k = {}
-    sil_scores = {}
+    # Step 2 & 3: Loop over k values, compute inertia and silhouette
+    inertia_by_k: dict[str, float] = {}
+    silhouettes: dict[int, float] = {}
 
     for k in range(2, 7):
         km = KMeans(n_clusters=k, random_state=0, n_init=10)
-        km.fit(X_scaled)
+        labels = km.fit_predict(X_scaled)
         inertia_by_k[str(k)] = float(km.inertia_)
-        labels = km.labels_
-        sil_scores[k] = float(silhouette_score(X_scaled, labels))
+        silhouettes[k] = float(silhouette_score(X_scaled, labels))
 
-    # Step 4: Choose best_k with highest silhouette score
-    best_k = max(sil_scores, key=sil_scores.get)
-    best_silhouette = sil_scores[best_k]
+    # Step 4: Choose best_k as k with highest silhouette score
+    best_k = int(max(silhouettes, key=silhouettes.__getitem__))
+    best_silhouette = float(silhouettes[best_k])
 
-    # Step 5: Refit KMeans with best_k to get final labels
+    # Step 5: Refit KMeans with best_k for canonical final labels
     km_final = KMeans(n_clusters=best_k, random_state=0, n_init=10)
-    km_final.fit(X_scaled)
-    final_labels = km_final.labels_
+    final_labels = km_final.fit_predict(X_scaled)
 
-    # Compute cluster sizes sorted descending
+    # cluster_sizes sorted descending — native Python ints via .tolist()
     cluster_sizes = sorted(np.bincount(final_labels).tolist(), reverse=True)
-    cluster_sizes = [int(x) for x in cluster_sizes]
 
     return {
-        'best_k': int(best_k),
-        'silhouette': float(best_silhouette),
-        'inertia_by_k': inertia_by_k,
-        'cluster_sizes': cluster_sizes,
+        "best_k": best_k,
+        "silhouette": best_silhouette,
+        "inertia_by_k": inertia_by_k,
+        "cluster_sizes": cluster_sizes,
     }
 
 
-def main(argv: list = None) -> int:
-    """
-    CLI entry point.
-
-    Usage:
-        python solution.py --data <csv_path> --output-dir <dir>
-
-    Returns 0 on success, non-zero on error.
-    """
-    if argv is None:
-        argv = sys.argv[1:]
-
-    parser = argparse.ArgumentParser(description='KMeans Customer Segmentation')
-    parser.add_argument('--data', required=True, help='Path to customers CSV file')
-    parser.add_argument('--output-dir', required=True, help='Directory to write outputs')
-    args = parser.parse_args(argv)
-
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point."""
     try:
-        # Load data
-        df = pd.read_csv(args.data)
+        parser = argparse.ArgumentParser(description="KMeans Customer Segmentation")
+        parser.add_argument("--data", required=True, help="Path to customers CSV")
+        parser.add_argument("--output-dir", required=True, help="Directory for outputs")
+        args = parser.parse_args(argv)
 
-        # Create output directory if needed
+        df = pd.read_csv(args.data)
+        result = analyze(df)
+
         output_dir = args.output_dir
         os.makedirs(output_dir, exist_ok=True)
 
-        # Run analysis
-        result = analyze(df)
-
         # Write results.json
-        results_path = os.path.join(output_dir, 'results.json')
-        with open(results_path, 'w') as f:
+        with open(os.path.join(output_dir, "results.json"), "w") as f:
             json.dump(result, f)
 
-        # --- Prepare data for plots ---
+        # --- Prepare scaled data and PCA for plots ---
         scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(df[['recency', 'frequency', 'monetary']])
+        X_scaled = scaler.fit_transform(df[["recency", "frequency", "monetary"]])
 
-        inertia_by_k = result['inertia_by_k']
-        best_k = result['best_k']
+        k_values = list(range(2, 7))
+        inertias = [result["inertia_by_k"][str(k)] for k in k_values]
 
-        # Recompute silhouette scores for each k (for the silhouette plot)
-        ks = list(range(2, 7))
-        sil_scores_list = []
-        for k in ks:
+        # Recompute silhouette scores for plotting
+        sil_scores = []
+        for k in k_values:
             km = KMeans(n_clusters=k, random_state=0, n_init=10)
-            km.fit(X_scaled)
-            labels = km.labels_
-            sil_scores_list.append(float(silhouette_score(X_scaled, labels)))
+            labels = km.fit_predict(X_scaled)
+            sil_scores.append(float(silhouette_score(X_scaled, labels)))
 
-        # Get final labels for PCA scatter
+        # Refit final model for PCA scatter
+        best_k = result["best_k"]
         km_final = KMeans(n_clusters=best_k, random_state=0, n_init=10)
-        km_final.fit(X_scaled)
-        final_labels = km_final.labels_
+        final_labels = km_final.fit_predict(X_scaled)
 
-        # --- Plot 1: Elbow curve ---
-        inertia_values = [inertia_by_k[str(k)] for k in ks]
-        plt.figure()
-        plt.plot(ks, inertia_values, marker='o')
-        plt.xlabel('Number of Clusters (k)')
-        plt.ylabel('Inertia')
-        plt.title('Elbow Curve: Inertia vs k')
-        plt.xticks(ks)
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, 'elbow_curve.png'))
-        plt.close()
-
-        # --- Plot 2: Silhouette scores vs k ---
-        plt.figure()
-        plt.plot(ks, sil_scores_list, marker='o')
-        plt.xlabel('Number of Clusters (k)')
-        plt.ylabel('Silhouette Score')
-        plt.title('Silhouette Score vs k')
-        plt.xticks(ks)
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, 'silhouette_scores.png'))
-        plt.close()
-
-        # --- Plot 3: PCA scatter colored by cluster ---
+        # PCA for scatter
         pca = PCA(n_components=2)
         X_pca = pca.fit_transform(X_scaled)
-        plt.figure()
-        scatter = plt.scatter(X_pca[:, 0], X_pca[:, 1], c=final_labels, cmap='viridis', alpha=0.7)
-        plt.colorbar(scatter, label='Cluster')
-        plt.xlabel('PC1')
-        plt.ylabel('PC2')
-        plt.title(f'PCA Scatter (k={best_k})')
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, 'pca_scatter.png'))
-        plt.close()
+
+        # Plot 1: Elbow curve
+        fig, ax = plt.subplots()
+        ax.plot(k_values, inertias, marker="o")
+        ax.set_xlabel("k")
+        ax.set_ylabel("Inertia")
+        ax.set_title("Elbow Curve: Inertia vs k")
+        fig.savefig(os.path.join(output_dir, "elbow.png"))
+        plt.close(fig)
+
+        # Plot 2: Silhouette score vs k
+        fig, ax = plt.subplots()
+        ax.plot(k_values, sil_scores, marker="o")
+        ax.set_xlabel("k")
+        ax.set_ylabel("Silhouette Score")
+        ax.set_title("Silhouette Score vs k")
+        fig.savefig(os.path.join(output_dir, "silhouette.png"))
+        plt.close(fig)
+
+        # Plot 3: PCA scatter colored by cluster labels
+        fig, ax = plt.subplots()
+        scatter = ax.scatter(X_pca[:, 0], X_pca[:, 1], c=final_labels, cmap="tab10")
+        ax.set_xlabel("PC1")
+        ax.set_ylabel("PC2")
+        ax.set_title(f"PCA Scatter — k={best_k} clusters")
+        fig.colorbar(scatter, ax=ax, label="Cluster")
+        fig.savefig(os.path.join(output_dir, "pca_scatter.png"))
+        plt.close(fig)
 
         return 0
 
-    except Exception as e:
-        print(f'Error: {e}', file=sys.stderr)
+    except Exception:
         return 1
 
 
-if __name__ == '__main__':
-    sys.exit(main(sys.argv[1:]))
+if __name__ == "__main__":
+    raise SystemExit(main())

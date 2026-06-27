@@ -1,6 +1,3 @@
-"""accounts.py — Account class for the double-entry ledger."""
-
-
 class Account:
     def __init__(self, name: str) -> None:
         """A named account whose integer-cent balance starts at 0."""

@@ -1,0 +1,12 @@
+{
+  "id": "h08_txnkv",
+  "category": "harness",
+  "title": "Transactional Key-Value Store with Savepoints and TTL",
+  "weight": 6,
+  "packages": [],
+  "entrypoints": {"module": "solution.py", "callables": ["Store"], "cli": false},
+  "grader": "grader/test_h08.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-18"
+}

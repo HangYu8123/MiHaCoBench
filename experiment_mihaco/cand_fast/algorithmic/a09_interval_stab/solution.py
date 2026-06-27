@@ -11,17 +11,14 @@ def min_stabbing_points(intervals: list[tuple]) -> int:
     if not intervals:
         return 0
 
-    # Sort by right endpoint (greedy: always stab at the earliest ending interval's right end)
-    sorted_intervals = sorted(intervals, key=lambda iv: iv[1])
+    sorted_intervals = sorted(intervals, key=lambda x: x[1])
 
+    last_point = float('-inf')
     count = 0
-    last_point = None
 
-    for (a, b) in sorted_intervals:
-        # If last_point is None or strictly less than a, the current interval is not yet stabbed
-        # Note: closed intervals, so if last_point == a, the point touches the left endpoint → already stabbed
-        if last_point is None or last_point < a:
-            count += 1
+    for a, b in sorted_intervals:
+        if a > last_point:
             last_point = b
+            count += 1
 
     return count

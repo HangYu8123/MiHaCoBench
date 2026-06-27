@@ -1,7 +1,7 @@
 import numpy as np
-from sklearn.linear_model import Ridge
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import Ridge
 
 
 def train(X: np.ndarray, y: np.ndarray) -> object:
@@ -18,12 +18,12 @@ def train(X: np.ndarray, y: np.ndarray) -> object:
     -------
     model : any object that can be passed to ``predict``.
     """
-    model = Pipeline([
-        ('scaler', StandardScaler()),
-        ('reg', Ridge(alpha=1.0, random_state=0))
+    pipeline = Pipeline([
+        ("scaler", StandardScaler()),
+        ("ridge", Ridge(alpha=1.0)),
     ])
-    model.fit(X, y)
-    return model
+    pipeline.fit(X, y)
+    return pipeline
 
 
 def predict(model: object, X: np.ndarray) -> np.ndarray:
@@ -39,5 +39,4 @@ def predict(model: object, X: np.ndarray) -> np.ndarray:
     predictions : numpy.ndarray of shape (n_samples,), dtype float64
         One predicted value per row.
     """
-    predictions = model.predict(X)
-    return predictions.ravel().astype(np.float64)
+    return model.predict(X).ravel().astype(np.float64)

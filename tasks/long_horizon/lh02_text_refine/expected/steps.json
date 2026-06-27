@@ -1,6 +1,0 @@
-{
-  "1": {"data": "the quick brown fox  the quick fox  the fox runs "},
-  "2": {"data": ["the", "quick", "brown", "fox", "the", "quick", "fox", "the", "fox", "runs"]},
-  "3": {"data": {"the": 3, "quick": 2, "brown": 1, "fox": 3, "runs": 1}},
-  "4": {"data": [["fox", 3], ["the", 3], ["quick", 2]]}
-}

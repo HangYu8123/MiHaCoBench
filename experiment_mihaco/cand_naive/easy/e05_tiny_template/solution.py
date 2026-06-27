@@ -1,6 +1,11 @@
 """
-Easy 05 — tiny_template: minimal Jinja-like template renderer.
-Uses standard library only (re module).
+Tiny Jinja-like template renderer.
+Supports:
+  - {{ var }} and {{ a.b.c }} variable substitution (HTML-escaped by default)
+  - {{ var|safe }} to disable escaping
+  - {% if name %} ... {% endif %}
+  - {% if not name %} ... {% endif %}
+  - {% for x in items %} ... {% endfor %}
 """
 
 import re
@@ -15,12 +20,12 @@ def _html_escape(s: str) -> str:
     return s
 
 
-def _lookup(context: dict, path: str):
+def _lookup(context: dict, key_path: str):
     """
-    Look up a dotted path in context.
-    Returns the value if found, or None if any key is missing.
+    Resolve a dotted key path in context.
+    Returns the value or None if any key is missing.
     """
-    parts = path.split(".")
+    parts = key_path.split(".")
     value = context
     for part in parts:
         if isinstance(value, dict) and part in value:
@@ -30,232 +35,187 @@ def _lookup(context: dict, path: str):
     return value
 
 
-def render(template: str, context: dict) -> str:
-    """
-    Render a Jinja-like template string with the given context dict.
-
-    Supports:
-    - Variable substitution: {{ name }}, {{ a.b }}, {{ name|safe }}
-    - Conditionals: {% if name %}...{% endif %}, {% if not name %}...{% endif %}
-    - Loops: {% for x in items %}...{% endfor %}
-    """
-    result = []
-    pos = 0
-    length = len(template)
-
-    # Pattern to match tags
-    tag_pattern = re.compile(r'\{\{.*?\}\}|\{%.*?%\}', re.DOTALL)
-
-    # We'll process top-level tokens, handling block structures
-    # First tokenize the template
-    tokens = _tokenize(template)
-    # Then evaluate the token stream
-    output = _evaluate(tokens, context, loop_var=None, loop_value=None)
-    return output
-
-
-def _tokenize(template: str):
-    """
-    Tokenize the template into a list of tokens.
-    Each token is a tuple: ('text', text) | ('var', expr) | ('block', content)
-    """
-    tokens = []
-    pos = 0
-    length = len(template)
-    tag_pattern = re.compile(r'(\{\{.*?\}\}|\{%.*?%\})', re.DOTALL)
-
-    for m in tag_pattern.finditer(template):
-        start, end = m.start(), m.end()
-        if start > pos:
-            tokens.append(('text', template[pos:start]))
-        tag = m.group(0)
-        if tag.startswith('{{'):
-            # Variable tag
-            expr = tag[2:-2].strip()
-            tokens.append(('var', expr))
-        else:
-            # Block tag
-            content = tag[2:-2].strip()
-            tokens.append(('block', content))
-        pos = end
-
-    if pos < length:
-        tokens.append(('text', template[pos:]))
-
-    return tokens
-
-
-def _evaluate(tokens, context: dict, loop_var, loop_value):
-    """
-    Evaluate a list of tokens against the context.
-    loop_var: the loop variable name (if inside a for loop), else None
-    loop_value: the current loop element value, else None
-    Returns the rendered string.
-    """
+def _render_block(template: str, context: dict) -> str:
+    """Render a template string given a context dict."""
     result = []
     i = 0
-    n = len(tokens)
+    n = len(template)
 
     while i < n:
-        kind, value = tokens[i]
+        # Look for next tag: {{ or {%
+        var_pos = template.find("{{", i)
+        tag_pos = template.find("{%", i)
 
-        if kind == 'text':
-            result.append(value)
-            i += 1
+        # Determine which comes first
+        if var_pos == -1 and tag_pos == -1:
+            # No more tags, append rest
+            result.append(template[i:])
+            break
 
-        elif kind == 'var':
-            # Variable substitution
-            expr = value
-            safe = False
-            if '|' in expr:
-                parts = expr.split('|', 1)
-                expr = parts[0].strip()
-                filter_name = parts[1].strip()
-                if filter_name == 'safe':
-                    safe = True
-
-            # Resolve the variable
-            resolved = _resolve_var(expr, context, loop_var, loop_value)
-            if resolved is None:
-                rendered = ''
+        if var_pos == -1:
+            next_pos = tag_pos
+            next_type = "tag"
+        elif tag_pos == -1:
+            next_pos = var_pos
+            next_type = "var"
+        else:
+            if var_pos <= tag_pos:
+                next_pos = var_pos
+                next_type = "var"
             else:
-                rendered = str(resolved)
+                next_pos = tag_pos
+                next_type = "tag"
+
+        # Append literal text before the tag
+        result.append(template[i:next_pos])
+
+        if next_type == "var":
+            # Find closing }}
+            end = template.find("}}", next_pos + 2)
+            if end == -1:
+                # No closing, treat as literal
+                result.append(template[next_pos:])
+                i = n
+                continue
+            inner = template[next_pos + 2:end].strip()
+            # Check for |safe filter
+            safe = False
+            if "|" in inner:
+                parts = inner.split("|", 1)
+                key_path = parts[0].strip()
+                filter_name = parts[1].strip()
+                if filter_name == "safe":
+                    safe = True
+            else:
+                key_path = inner
+
+            value = _lookup(context, key_path)
+            if value is None:
+                str_value = ""
+            else:
+                str_value = str(value)
 
             if not safe:
-                rendered = _html_escape(rendered)
+                str_value = _html_escape(str_value)
 
-            result.append(rendered)
-            i += 1
+            result.append(str_value)
+            i = end + 2
 
-        elif kind == 'block':
-            block_content = value
+        else:  # next_type == "tag"
+            # Find closing %}
+            end = template.find("%}", next_pos + 2)
+            if end == -1:
+                # No closing, treat as literal
+                result.append(template[next_pos:])
+                i = n
+                continue
 
-            if block_content.startswith('if '):
-                # {% if name %} or {% if not name %}
-                condition_expr = block_content[3:].strip()
+            tag_content = template[next_pos + 2:end].strip()
+            i = end + 2
+
+            # Parse the tag
+            if tag_content.startswith("if "):
+                # Conditional: {% if name %} or {% if not name %}
+                condition = tag_content[3:].strip()
                 negate = False
-                if condition_expr.startswith('not '):
+                if condition.startswith("not "):
                     negate = True
-                    condition_expr = condition_expr[4:].strip()
+                    condition = condition[4:].strip()
 
-                # Find matching endif
-                body_tokens, skip = _collect_block(tokens, i + 1, 'endif')
-                i = skip  # i now points past the endfor/endif token
+                # Find matching {% endif %}
+                body, after = _find_block_end(template, i, "if")
+                i = after
 
-                # Evaluate condition - check loop var first, then context
-                if loop_var is not None and condition_expr == loop_var:
-                    val = loop_value
-                else:
-                    val = context.get(condition_expr)
-                is_truthy = bool(val)
+                # Evaluate condition
+                value = context.get(condition)
+                is_truthy = bool(value)
                 if negate:
                     is_truthy = not is_truthy
 
                 if is_truthy:
-                    result.append(_evaluate(body_tokens, context, loop_var, loop_value))
+                    result.append(_render_block(body, context))
 
-            elif block_content.startswith('for '):
-                # {% for x in items %}
-                m = re.match(r'^for\s+(\w+)\s+in\s+(\w+)$', block_content)
-                if not m:
-                    i += 1
-                    continue
-                var_name = m.group(1)
-                items_name = m.group(2)
+            elif tag_content.startswith("for "):
+                # Loop: {% for x in items %}
+                m = re.match(r'^for\s+(\w+)\s+in\s+(\w+)$', tag_content)
+                if m:
+                    loop_var = m.group(1)
+                    items_key = m.group(2)
 
-                # Find matching endfor
-                body_tokens, skip = _collect_block(tokens, i + 1, 'endfor')
-                i = skip
+                    # Find matching {% endfor %}
+                    body, after = _find_block_end(template, i, "for")
+                    i = after
 
-                # Lookup items in context
-                items = context.get(items_name)
-                if items:
-                    try:
-                        for element in items:
-                            result.append(_evaluate(body_tokens, context, var_name, element))
-                    except TypeError:
-                        pass  # Not iterable
+                    items = context.get(items_key)
+                    if items:
+                        for item in items:
+                            # Create a new context with loop variable
+                            loop_context = dict(context)
+                            loop_context[loop_var] = item
+                            result.append(_render_block(body, loop_context))
+                else:
+                    # Malformed for tag, skip
+                    body, after = _find_block_end(template, i, "for")
+                    i = after
 
-            elif block_content == 'endif' or block_content == 'endfor':
-                # Should not encounter these here at top level in normal usage
-                # but skip them
-                i += 1
+            elif tag_content in ("endif", "endfor"):
+                # These should be consumed by their opener; if we see them here,
+                # they're stray — just skip
+                pass
             else:
-                # Unknown block, skip
-                i += 1
+                # Unknown tag, skip
+                pass
 
-        else:
-            i += 1
-
-    return ''.join(result)
+    return "".join(result)
 
 
-def _collect_block(tokens, start: int, end_tag: str):
+def _find_block_end(template: str, start: int, block_type: str) -> tuple:
     """
-    Collect tokens for a block body, handling nested same-type blocks.
-    Returns (body_tokens, next_index) where next_index points to the token AFTER the end tag.
+    Find the matching end tag ({% endif %} or {% endfor %}) for a block,
+    handling nesting of the same block type.
 
-    For simplicity (spec says nesting for-in-for is not required), we find the
-    first matching end_tag at the same nesting level.
+    Returns (body_text, position_after_end_tag).
     """
-    # Determine opening tag prefix based on end_tag
-    if end_tag == 'endif':
-        open_prefix = 'if '
-    elif end_tag == 'endfor':
-        open_prefix = 'for '
-    else:
-        open_prefix = None
-
+    end_tag = "end" + block_type
     depth = 1
-    body_tokens = []
     i = start
-    n = len(tokens)
+    n = len(template)
 
     while i < n:
-        kind, value = tokens[i]
-        if kind == 'block':
-            if value == end_tag:
-                depth -= 1
-                if depth == 0:
-                    return body_tokens, i + 1
-                else:
-                    body_tokens.append((kind, value))
-            elif open_prefix and value.startswith(open_prefix):
-                depth += 1
-                body_tokens.append((kind, value))
-            else:
-                body_tokens.append((kind, value))
-        else:
-            body_tokens.append((kind, value))
-        i += 1
+        tag_pos = template.find("{%", i)
+        if tag_pos == -1:
+            # No more tags — malformed template, return everything
+            return template[start:], n
 
-    # If we didn't find the end tag, return what we have
-    return body_tokens, i
+        end = template.find("%}", tag_pos + 2)
+        if end == -1:
+            return template[start:], n
+
+        tag_content = template[tag_pos + 2:end].strip()
+
+        if tag_content.startswith(block_type + " ") or tag_content == block_type:
+            depth += 1
+        elif tag_content == end_tag:
+            depth -= 1
+            if depth == 0:
+                return template[start:tag_pos], end + 2
+
+        i = end + 2
+
+    # No matching end found
+    return template[start:], n
 
 
-def _resolve_var(expr: str, context: dict, loop_var, loop_value):
+def render(template: str, context: dict) -> str:
     """
-    Resolve a variable expression (possibly dotted) against context.
-    If expr starts with loop_var, use the loop value instead.
-    Returns the resolved value or None if not found.
-    """
-    parts = expr.split('.')
+    Render a template string with the given context dictionary.
 
-    if loop_var is not None and parts[0] == loop_var:
-        # First part is the loop variable
-        value = loop_value
-        for part in parts[1:]:
-            if isinstance(value, dict) and part in value:
-                value = value[part]
-            else:
-                return None
-        return value
-    else:
-        # Look up in context
-        value = context
-        for part in parts:
-            if isinstance(value, dict) and part in value:
-                value = value[part]
-            else:
-                return None
-        return value
+    Supports:
+    - {{ var }} — HTML-escaped variable substitution
+    - {{ var|safe }} — raw variable substitution (no escaping)
+    - {{ a.b.c }} — dotted dict access
+    - {% if name %} ... {% endif %} — conditional
+    - {% if not name %} ... {% endif %} — negated conditional
+    - {% for x in items %} ... {% endfor %} — loop
+    """
+    return _render_block(template, context)

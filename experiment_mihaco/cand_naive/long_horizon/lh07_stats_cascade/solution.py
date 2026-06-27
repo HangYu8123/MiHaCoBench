@@ -1,6 +1,6 @@
 """
 stats_cascade — 14-step numerical pipeline
-Each invocation: python solution.py --step K --in <input_json> --out <output_json>
+Usage: python solution.py --step <K> --in <input_json_path> --out <output_json_path>
 """
 
 import argparse
@@ -10,48 +10,47 @@ import sys
 
 
 def compute_provenance(in_path: str) -> str:
-    """SHA-256 hex digest of the raw bytes of the input file."""
-    with open(in_path, "rb") as f:
+    with open(in_path, 'rb') as f:
         return hashlib.sha256(f.read()).hexdigest()
 
 
-def step_1_parse(data):
-    """Cast each element of input['values'] to float."""
+def step1_parse(data):
+    """read values from input; cast each element to float."""
     return [float(x) for x in data["values"]]
 
 
-def step_2_double(data):
-    """Multiply every element by 2."""
+def step2_double(data):
+    """multiply every element by 2."""
     return [x * 2.0 for x in data]
 
 
-def step_3_square(data):
-    """Raise every element to the power of 2."""
+def step3_square(data):
+    """raise every element to the power of 2."""
     return [x * x for x in data]
 
 
-def step_4_normalize_minmax(data):
-    """Apply min-max normalization: (x - min) / (max - min)."""
+def step4_normalize_minmax(data):
+    """apply min-max normalization."""
     mn = min(data)
     mx = max(data)
     denom = mx - mn
     return [(x - mn) / denom for x in data]
 
 
-def step_5_scale(data):
-    """Multiply every element by 50."""
+def step5_scale(data):
+    """multiply every element by 50."""
     return [x * 50.0 for x in data]
 
 
-def step_6_round3(data):
-    """Round every element to 3 decimal places."""
+def step6_round3(data):
+    """round every element to 3 decimal places."""
     return [round(x, 3) for x in data]
 
 
-def step_7_moving_avg_3(data):
-    """Apply a 3-element moving average with edge handling."""
+def step7_moving_avg_3(data):
+    """apply a 3-element moving average."""
     result = []
-    for i in range(len(data)):
+    for i, _ in enumerate(data):
         if i == 0:
             window = [data[0]]
         elif i == 1:
@@ -62,23 +61,23 @@ def step_7_moving_avg_3(data):
     return result
 
 
-def step_8_cumsum(data):
-    """Compute the running cumulative sum."""
+def step8_cumsum(data):
+    """compute the running cumulative sum."""
     result = []
-    total = 0.0
+    running = 0.0
     for x in data:
-        total += x
-        result.append(total)
+        running += x
+        result.append(running)
     return result
 
 
-def step_9_diffs(data):
-    """Compute consecutive differences: out[i] = data[i+1] - data[i]."""
+def step9_diffs(data):
+    """compute consecutive differences."""
     return [data[i + 1] - data[i] for i in range(len(data) - 1)]
 
 
-def step_10_prefix_min(data):
-    """Compute running prefix minimum."""
+def step10_prefix_min(data):
+    """compute the running prefix minimum."""
     result = []
     current_min = None
     for x in data:
@@ -88,90 +87,88 @@ def step_10_prefix_min(data):
     return result
 
 
-def step_11_abs(data):
-    """Take the absolute value of every element."""
+def step11_abs(data):
+    """take the absolute value of every element."""
     return [abs(x) for x in data]
 
 
-def step_12_sort_desc(data):
-    """Sort the list in descending order."""
+def step12_sort_desc(data):
+    """sort the list in descending order."""
     return sorted(data, reverse=True)
 
 
-def step_13_top_k(data):
-    """Keep only the first 8 elements."""
+def step13_top_k(data):
+    """keep only the first 8 elements."""
     return data[:8]
 
 
-def step_14_aggregate(data):
-    """Compute summary statistics over the 8-element list."""
+def step14_aggregate(data):
+    """compute summary statistics over the 8-element list."""
     return {
-        "sum": float(sum(data)),
-        "mean": float(sum(data) / len(data)),
-        "min": float(min(data)),
-        "max": float(max(data)),
-        "count": int(len(data)),
+        "sum": sum(data),
+        "mean": sum(data) / len(data),
+        "min": min(data),
+        "max": max(data),
+        "count": len(data),
     }
 
 
-STEP_FUNCTIONS = {
-    1: step_1_parse,
-    2: step_2_double,
-    3: step_3_square,
-    4: step_4_normalize_minmax,
-    5: step_5_scale,
-    6: step_6_round3,
-    7: step_7_moving_avg_3,
-    8: step_8_cumsum,
-    9: step_9_diffs,
-    10: step_10_prefix_min,
-    11: step_11_abs,
-    12: step_12_sort_desc,
-    13: step_13_top_k,
-    14: step_14_aggregate,
+STEPS = {
+    1: step1_parse,
+    2: step2_double,
+    3: step3_square,
+    4: step4_normalize_minmax,
+    5: step5_scale,
+    6: step6_round3,
+    7: step7_moving_avg_3,
+    8: step8_cumsum,
+    9: step9_diffs,
+    10: step10_prefix_min,
+    11: step11_abs,
+    12: step12_sort_desc,
+    13: step13_top_k,
+    14: step14_aggregate,
 }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="stats_cascade pipeline step")
-    parser.add_argument("--step", type=int, required=True, help="Step number (1-14)")
-    parser.add_argument("--in", dest="in_path", required=True, help="Input JSON file path")
-    parser.add_argument("--out", dest="out_path", required=True, help="Output JSON file path")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--step", type=int, required=True)
+    parser.add_argument("--in", dest="in_path", required=True)
+    parser.add_argument("--out", dest="out_path", required=True)
     args = parser.parse_args()
 
-    step = args.step
+    step_num = args.step
     in_path = args.in_path
     out_path = args.out_path
 
-    if step not in STEP_FUNCTIONS:
-        print(f"Error: step must be between 1 and 14, got {step}", file=sys.stderr)
+    if step_num not in STEPS:
+        print(f"Unknown step: {step_num}", file=sys.stderr)
         sys.exit(1)
 
-    # Compute provenance before reading data
     provenance = compute_provenance(in_path)
 
-    # Read input
-    with open(in_path, "r") as f:
-        in_data = json.load(f)
+    with open(in_path, 'r') as f:
+        in_obj = json.load(f)
 
-    # Extract data field (step 1 reads the raw input, others read the 'data' field)
-    if step == 1:
-        input_data = in_data
+    # For step 1, the input is the original input.json with a "values" key.
+    # For all other steps, the input is the previous step's output with a "data" key.
+    if step_num == 1:
+        input_data = in_obj
     else:
-        input_data = in_data["data"]
+        input_data = in_obj["data"]
 
-    # Apply the step function
-    result = STEP_FUNCTIONS[step](input_data)
+    fn = STEPS[step_num]
+    result = fn(input_data)
 
-    # Write output
-    output = {
-        "step": step,
+    out_obj = {
+        "step": step_num,
         "data": result,
         "provenance": provenance,
     }
 
-    with open(out_path, "w") as f:
-        json.dump(output, f)
+    with open(out_path, 'w') as f:
+        json.dump(out_obj, f)
 
 
 if __name__ == "__main__":

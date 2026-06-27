@@ -1,0 +1,13 @@
+{
+  "id": "cb10_session_window",
+  "category": "compositional",
+  "title": "Sessionize time-ordered events with an inclusive gap boundary",
+  "weight": 4,
+  "packages": ["pandas", "numpy"],
+  "entrypoints": {"module": "solution.py", "callables": ["sessionize"], "cli": false},
+  "grader": "grader/test_cb10.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-17",
+  "source": "Group time-ordered events into sessions under an INCLUSIVE gap: consecutive events <= gap apart continue a session; a gap strictly > gap starts a new one. Boundary-ambiguity discriminator modeled on cb08 (the > vs >= trap). Ground truth: an independent pure-Python reference applying the correct inclusive rule."
+}

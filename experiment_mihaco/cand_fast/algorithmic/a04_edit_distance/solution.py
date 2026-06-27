@@ -2,30 +2,31 @@ def edit_distance(a: str, b: str) -> int:
     """Return the Levenshtein edit distance between strings a and b.
 
     Each insertion, deletion, or substitution costs 1.
-
-    Uses a rolling two-row DP approach with O(min(m, n)) space.
     """
-    # Ensure b is the shorter string so the 1D array has length min(m, n) + 1
+    # Swap so that b is the shorter string — column array size is min(m,n)+1.
     if len(a) < len(b):
         a, b = b, a
 
     m, n = len(a), len(b)
 
-    # prev[j] = edit_distance(a[:0], b[:j]) = j (base case: empty prefix of a)
+    # Base case: distance from "" to b[0..j] = j
     prev = list(range(n + 1))
-    curr = [0] * (n + 1)
 
     for i in range(1, m + 1):
-        # Cost of deleting all i characters of a[:i] to match empty b
-        curr[0] = i
+        # Save prev[0] (= i-1) as the diagonal before overwriting prev[0].
+        diag = prev[0]
+        prev[0] = i  # distance from a[0..i] to "" is i
+
         for j in range(1, n + 1):
+            # Save prev[j] ("cell above") before overwriting — becomes next diag.
+            temp = prev[j]
             if a[i - 1] == b[j - 1]:
-                # Characters match: no substitution cost, take diagonal
-                curr[j] = prev[j - 1]
+                # Characters match: no edit needed, take diagonal cost.
+                prev[j] = diag
             else:
-                # Min of: substitution (prev[j-1]+1), deletion (prev[j]+1), insertion (curr[j-1]+1)
-                curr[j] = 1 + min(prev[j - 1], prev[j], curr[j - 1])
-        # Swap rows for next iteration
-        prev, curr = curr, prev
+                # diag = substitute, temp = delete, prev[j-1] = insert
+                prev[j] = 1 + min(diag, temp, prev[j - 1])
+            # Advance diagonal for next column.
+            diag = temp
 
     return prev[n]

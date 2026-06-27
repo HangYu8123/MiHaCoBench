@@ -1,128 +1,104 @@
-"""migrator.py — public facade for the schema-migration runner.
-
-Re-exports Migration so that:
-    from migrator import Migrator, Migration
-works.
-"""
-
-from __future__ import annotations
+"""migrator.py — public facade: Migrator class for schema-migration runner."""
 
 from sqlalchemy import text
 
-from migrations import Migration  # re-export
-
-__all__ = ["Migrator", "Migration"]
+from migrations import Migration
 
 
 class Migrator:
     """Forward/backward schema-migration runner backed by SQLAlchemy 2.0."""
 
     def __init__(self, engine) -> None:
-        """Store the SQLAlchemy Engine and ensure the bookkeeping table exists."""
+        """Store the SQLAlchemy Engine. Bookkeeping table is lazily ensured on first use."""
         self._engine = engine
-        self._migrations: dict[int, Migration] = {}
-        self._ensure_table()
+        self._registry: dict[int, Migration] = {}
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
-    def _ensure_table(self) -> None:
-        """Create schema_versions table if it does not already exist."""
-        with self._engine.connect() as conn:
-            conn.execute(
-                text(
-                    "CREATE TABLE IF NOT EXISTS schema_versions "
-                    "(version INTEGER PRIMARY KEY)"
-                )
-            )
-            conn.commit()
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+    def _ensure_bookkeeping(self, conn) -> None:
+        """Create schema_versions table if it does not already exist (idempotent)."""
+        conn.execute(text(
+            "CREATE TABLE IF NOT EXISTS schema_versions "
+            "(version INTEGER PRIMARY KEY)"
+        ))
 
     def register(self, migration: Migration) -> None:
         """Add migration to the known set.
 
-        Raises ValueError if a migration with the same version is already
-        registered.
+        Raises ValueError if a migration with the same version is already registered.
         """
-        if migration.version in self._migrations:
+        version = int(migration.version)
+        if version in self._registry:
             raise ValueError(
-                f"A migration with version {migration.version} is already registered."
+                f"A migration with version {version!r} is already registered."
             )
-        self._migrations[migration.version] = migration
+        self._registry[version] = migration
 
     def applied_versions(self) -> list[int]:
-        """Return applied versions sorted ASCENDING as integers."""
-        with self._engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT version FROM schema_versions ORDER BY version ASC")
-            )
-            return [int(row[0]) for row in result]
+        """Return applied versions sorted ASCENDING as integers from schema_versions."""
+        with self._engine.begin() as conn:
+            self._ensure_bookkeeping(conn)
+            result = conn.execute(text("SELECT version FROM schema_versions"))
+            versions = [int(row[0]) for row in result]
+        return sorted(versions)
 
     def current(self) -> int | None:
-        """Return the maximum applied version as int, or None if none applied."""
-        with self._engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT MAX(version) FROM schema_versions")
-            )
-            row = result.fetchone()
-            if row is None or row[0] is None:
-                return None
-            return int(row[0])
+        """Return the maximum applied version as an int, or None if none applied."""
+        versions = self.applied_versions()
+        return max(versions) if versions else None
 
     def upgrade(self, target: int | None = None) -> None:
-        """Apply every registered migration whose version > current(), in
-        ascending integer order, up to and including target.
+        """Apply every pending registered migration in ascending integer order.
 
-        target=None means apply all pending migrations.
+        'Pending' means version > current() and, if target is given, <= target.
         Each migration runs in its own transaction; on failure the transaction
-        is rolled back and the exception propagates.
+        rolls back and the exception propagates.
         """
         current = self.current()
 
-        # Collect pending migrations: version > current and version <= target
-        pending = sorted(
-            (m for v, m in self._migrations.items()
-             if (current is None or v > current)
-             and (target is None or v <= target)),
-            key=lambda m: m.version,
-        )
+        # Collect pending versions: registered versions greater than current
+        pending = [v for v in self._registry if current is None or v > current]
 
-        for migration in pending:
-            # engine.begin() auto-commits on success, auto-rolls back on exception
+        # Apply upper bound if target is specified
+        if target is not None:
+            pending = [v for v in pending if v <= target]
+
+        # Sort ascending by integer value
+        pending.sort()
+
+        for v in pending:
+            migration = self._registry[v]
             with self._engine.begin() as conn:
+                self._ensure_bookkeeping(conn)
                 migration.up(conn)
                 conn.execute(
-                    text("INSERT INTO schema_versions(version) VALUES (:v)"),
-                    {"v": migration.version},
+                    text("INSERT INTO schema_versions (version) VALUES (:version)"),
+                    {"version": v},
                 )
 
     def downgrade(self, target: int) -> None:
-        """Roll back every applied migration whose version > target, in
-        descending integer order.
+        """Roll back every applied migration with version > target, descending order.
 
-        target may be below the lowest registered version, rolling back everything.
+        Each migration runs in its own transaction; on failure the transaction
+        rolls back and the exception propagates.
         """
-        applied = self.applied_versions()  # already sorted ascending
+        applied = self.applied_versions()
 
-        # Versions to roll back: version > target, in descending order
-        to_rollback = sorted(
-            [v for v in applied if v > target],
-            reverse=True,
-        )
+        # Versions to roll back: applied versions greater than target
+        to_rollback = [v for v in applied if v > target]
 
-        for version in to_rollback:
-            if version not in self._migrations:
-                # No registered migration for this version; skip (or raise?)
-                # Spec doesn't say — skip gracefully
-                continue
-            migration = self._migrations[version]
+        # Sort descending by integer value (roll back newest first)
+        to_rollback.sort(reverse=True)
+
+        for v in to_rollback:
+            if v not in self._registry:
+                raise RuntimeError(
+                    f"Migration version {v!r} was applied but is not registered; "
+                    "cannot roll back."
+                )
+            migration = self._registry[v]
             with self._engine.begin() as conn:
+                self._ensure_bookkeeping(conn)
                 migration.down(conn)
                 conn.execute(
-                    text("DELETE FROM schema_versions WHERE version = :v"),
-                    {"v": version},
+                    text("DELETE FROM schema_versions WHERE version = :version"),
+                    {"version": v},
                 )

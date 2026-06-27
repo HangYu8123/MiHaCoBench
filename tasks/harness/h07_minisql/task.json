@@ -1,0 +1,12 @@
+{
+  "id": "h07_minisql",
+  "category": "harness",
+  "title": "In-Memory SQL Query Engine",
+  "weight": 6,
+  "packages": [],
+  "entrypoints": {"module": "solution.py", "callables": ["Database"], "cli": false},
+  "grader": "grader/test_h07.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-18"
+}

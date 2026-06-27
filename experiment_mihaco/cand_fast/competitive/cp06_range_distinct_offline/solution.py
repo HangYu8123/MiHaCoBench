@@ -1,11 +1,3 @@
-"""
-Offline distinct-count range queries using BIT (Fenwick tree) + last-occurrence trick.
-Time complexity: O((n + q) log n)
-Space complexity: O(n + q)
-"""
-from collections import defaultdict
-
-
 def range_distinct(a: list[int], queries: list[tuple]) -> list[int]:
     """Answer offline range-distinct-count queries.
 
@@ -27,20 +19,21 @@ def range_distinct(a: list[int], queries: list[tuple]) -> list[int]:
         return []
 
     n = len(a)
-    q = len(queries)
 
-    # BIT (1-indexed), size n+1
+    # Fenwick tree (BIT) with 1-based internal indexing.
+    # Caller passes 0-based positions; internally stored at i+1.
     bit = [0] * (n + 1)
 
-    def update(i: int, delta: int) -> None:
-        # i is 0-indexed; convert to 1-indexed
+    def bit_update(i, delta):
+        # Convert 0-based position i to 1-based index.
         i += 1
         while i <= n:
             bit[i] += delta
             i += i & (-i)
 
-    def prefix_sum(i: int) -> int:
-        # i is 0-indexed; convert to 1-indexed
+    def bit_query(i):
+        # Prefix sum over [0..i] (0-based), i.e. [1..i+1] internally.
+        # For i < 0, returns 0 (never called with i < 0 due to guard below).
         i += 1
         s = 0
         while i > 0:
@@ -48,37 +41,30 @@ def range_distinct(a: list[int], queries: list[tuple]) -> list[int]:
             i -= i & (-i)
         return s
 
-    def range_sum(l: int, r: int) -> int:
-        # Both l and r are 0-indexed inclusive
-        if l == 0:
-            return prefix_sum(r)
-        return prefix_sum(r) - prefix_sum(l - 1)
+    # Sort queries by right endpoint, preserving original indices.
+    sorted_queries = sorted(enumerate(queries), key=lambda x: x[1][1])
 
-    # Group queries by right endpoint (r), storing (l, original_index)
-    q_at = defaultdict(list)
-    for idx, (l, r) in enumerate(queries):
-        q_at[r].append((l, idx))
+    answers = [0] * len(queries)
+    last_seen = {}  # value -> last index where it appeared (0-based)
+    q_ptr = 0
+    q_count = len(sorted_queries)
 
-    # Answer array in original query order
-    ans = [0] * q
+    for r in range(n):
+        v = a[r]
+        # Remove old contribution of this value if it was seen before.
+        if v in last_seen:
+            bit_update(last_seen[v], -1)
+        # Add new contribution at current position.
+        bit_update(r, 1)
+        last_seen[v] = r
 
-    # last_seen[v] = last index where value v was seen (0-indexed), or -1 if not seen
-    last_seen = {}
+        # Answer all queries whose right endpoint is r.
+        while q_ptr < q_count and sorted_queries[q_ptr][1][1] == r:
+            orig_idx, (l, _r) = sorted_queries[q_ptr]
+            if l == 0:
+                answers[orig_idx] = bit_query(r)
+            else:
+                answers[orig_idx] = bit_query(r) - bit_query(l - 1)
+            q_ptr += 1
 
-    # Sweep right endpoint from 0 to n-1
-    for i in range(n):
-        v = a[i]
-        prev = last_seen.get(v, -1)
-        if prev >= 0:
-            # Remove old contribution at prev position
-            update(prev, -1)
-        # Place new contribution at current position i
-        update(i, 1)
-        last_seen[v] = i
-
-        # Answer all queries with right endpoint == i
-        if i in q_at:
-            for (l, idx) in q_at[i]:
-                ans[idx] = range_sum(l, i)
-
-    return ans
+    return answers

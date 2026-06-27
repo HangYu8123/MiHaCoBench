@@ -1,68 +1,48 @@
-"""SQLAlchemy 2.0 ORM models for the priority job queue.
+"""SQLAlchemy 2.0 ORM models for the job queue."""
 
-Defines:
-    Base        — declarative base class
-    Job         — job table
-    Dependency  — dependency edges table
-"""
-from __future__ import annotations
-
-from typing import Optional
-
-from sqlalchemy import ForeignKey, Integer, String
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import Integer, String, ForeignKey
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
 
 class Base(DeclarativeBase):
-    """Common declarative base for all ORM models."""
+    pass
 
 
 class Job(Base):
-    """Represents a single job in the queue.
-
-    Columns
-    -------
-    id        : auto-increment primary key
-    name      : human-readable job name
-    payload   : optional JSON dict passed to the worker
-    priority  : scheduling priority; higher value = higher urgency
-    status    : one of "pending", "running", "done", "failed"
-    attempts  : number of failed attempts recorded via fail()
-    result    : optional JSON dict written back by complete()
-    """
-
-    __tablename__ = "job"
+    __tablename__ = "jobs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    payload: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default=None)
-    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
-    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    result: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default=None)
+    payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    status: Mapped[str] = mapped_column(String, default="pending", nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    def __repr__(self) -> str:  # pragma: no cover
-        return (
-            f"<Job id={self.id!r} name={self.name!r} "
-            f"status={self.status!r} priority={self.priority!r}>"
-        )
+    # Relationships for dependencies
+    # Dependencies where this job is the dependent (the job that needs others to be done)
+    dependencies: Mapped[list["Dependency"]] = relationship(
+        "Dependency",
+        foreign_keys="Dependency.job_id",
+        back_populates="job",
+        cascade="all, delete-orphan",
+    )
 
 
 class Dependency(Base):
-    """Records a dependency edge: job ``job_id`` must wait for ``depends_on_id``.
-
-    The composite primary key (job_id, depends_on_id) prevents duplicate edges.
-    """
-
-    __tablename__ = "dependency"
+    __tablename__ = "dependencies"
 
     job_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("job.id"), primary_key=True, nullable=False
+        Integer, ForeignKey("jobs.id"), primary_key=True
     )
     depends_on_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("job.id"), primary_key=True, nullable=False
+        Integer, ForeignKey("jobs.id"), primary_key=True
     )
 
-    def __repr__(self) -> str:  # pragma: no cover
-        return f"<Dependency job_id={self.job_id!r} depends_on_id={self.depends_on_id!r}>"
+    job: Mapped["Job"] = relationship(
+        "Job", foreign_keys=[job_id], back_populates="dependencies"
+    )
+    depends_on_job: Mapped["Job"] = relationship(
+        "Job", foreign_keys=[depends_on_id]
+    )

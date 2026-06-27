@@ -1,104 +1,111 @@
-"""
-ranking.py — pagerank, degree_centrality
-"""
-from __future__ import annotations
-from typing import Any
+"""Graph ranking algorithms: PageRank, degree centrality."""
 
 import numpy as np
 
-from structures import Graph
 
+def pagerank(graph, damping: float = 0.85, max_iter: int = 100, tol: float = 1e-9) -> dict:
+    """Compute the PageRank of every node using power iteration.
 
-def pagerank(
-    graph: Graph,
-    damping: float = 0.85,
-    max_iter: int = 100,
-    tol: float = 1e-9,
-) -> dict:
-    """
-    Compute PageRank for every node using power iteration.
+    The returned dict:
+    - contains every node in the graph
+    - has values summing to approximately 1.0 (within 1e-6)
+    - converges within max_iter power-iterations
 
-    Formula per iteration:
-        PR(v) = (1-d)/N + d * Σ_{u -> v} PR(u) / out_degree(u)
-
-    Returns a dict ``{node: rank}`` where values sum to approximately 1.0.
-    Every node in the graph is included.
+    Formula: PR(v) = (1-d)/N + d * sum(PR(u)/out_degree(u)) for each in-neighbour u
     """
     nodes = list(graph.nodes())
     N = len(nodes)
+
     if N == 0:
         return {}
 
-    # Map nodes to indices
-    node_to_idx: dict = {n: i for i, n in enumerate(nodes)}
+    if N == 1:
+        return {nodes[0]: 1.0}
 
-    # Build out-degree array and transition matrix (column-stochastic)
-    # out_degree[i] = number of out-edges from node i (weighted by count, not weight)
-    out_degree = np.zeros(N, dtype=float)
-    for i, node in enumerate(nodes):
-        out_degree[i] = sum(1 for _ in graph.neighbors(node))
+    # Create node -> index mapping
+    node_idx = {node: i for i, node in enumerate(nodes)}
 
-    # Build the row-stochastic transition matrix M where M[j, i] = 1/out(i)
-    # meaning node i sends its rank equally to all its out-neighbours j.
-    # We'll work column-by-column (each column i is the distribution from i).
-    M = np.zeros((N, N), dtype=float)
-    for i, node in enumerate(nodes):
-        if out_degree[i] == 0:
-            # Dangling node: distribute rank uniformly to all nodes
-            M[:, i] = 1.0 / N
+    # Build transition matrix (column-stochastic)
+    # For each node, compute out-degree and build adjacency info
+    out_degree = np.zeros(N)
+    # adjacency: target_idx -> list of (source_idx, weight) pairs
+    # We need for each node v: sum over u that points to v of PR(u)/out_degree(u)
+    # Build a sparse representation: for node u, it contributes to neighbors
+
+    # Build the transition matrix M where M[v][u] = 1/out_degree(u) if u->v edge
+    # PR_new = (1-d)/N * ones + d * M @ PR
+
+    # Use numpy arrays for efficiency
+    M = np.zeros((N, N))
+
+    for node in nodes:
+        u_idx = node_idx[node]
+        neighbors_list = list(graph.neighbors(node))
+
+        if len(neighbors_list) == 0:
+            # Dangling node: distribute evenly to all nodes
+            M[:, u_idx] = 1.0 / N
         else:
-            for neighbor, _weight in graph.neighbors(node):
-                j = node_to_idx[neighbor]
-                M[j, i] += 1.0 / out_degree[i]
+            # Compute out-degree (sum of all outgoing edge weights, but standard PR uses count)
+            # Standard PageRank uses uniform distribution over out-neighbors
+            out_deg = len(neighbors_list)
+            for neighbor, _ in neighbors_list:
+                v_idx = node_idx[neighbor]
+                M[v_idx, u_idx] += 1.0 / out_deg
 
     # Power iteration
-    rank = np.ones(N, dtype=float) / N
-    teleport = np.ones(N, dtype=float) / N
+    pr = np.ones(N) / N
 
     for _ in range(max_iter):
-        new_rank = (1.0 - damping) * teleport + damping * M.dot(rank)
-        # Normalize to ensure sum = 1 (handles floating-point drift)
-        new_rank /= new_rank.sum()
-        delta = np.abs(new_rank - rank).sum()
-        rank = new_rank
-        if delta < tol:
+        pr_new = (1.0 - damping) / N * np.ones(N) + damping * M @ pr
+
+        # Check convergence
+        diff = np.abs(pr_new - pr).sum()
+        pr = pr_new
+
+        if diff < tol:
             break
 
-    return {node: float(rank[node_to_idx[node]]) for node in nodes}
+    # Normalize to ensure sum = 1.0
+    total = pr.sum()
+    if total > 0:
+        pr = pr / total
+
+    return {node: float(pr[node_idx[node]]) for node in nodes}
 
 
-def degree_centrality(graph: Graph) -> dict:
-    """
-    Return ``{node: degree / (N-1)}`` where N is the total number of nodes.
+def degree_centrality(graph) -> dict:
+    """Return {node: degree / (N-1)} where N is the total number of nodes.
 
-    For directed graphs uses the **total degree** (in + out).
-    For N <= 1 returns ``{node: 0.0}`` for all nodes.
-    Every node in the graph is included.
+    For directed graphs, use the total degree (in + out).
+    For N <= 1, return {node: 0.0} for all nodes.
+    Every node in the graph must appear in the result.
     """
     nodes = list(graph.nodes())
     N = len(nodes)
+
     if N <= 1:
         return {node: 0.0 for node in nodes}
 
-    if not graph.directed:
-        # Undirected: degree = number of neighbors (adjacency list length)
-        return {
-            node: len(dict(graph.neighbors(node))) / (N - 1)
-            for node in nodes
-        }
-    else:
-        # Directed: out-degree is easy from adjacency list.
-        # In-degree requires counting how many times each node appears as a neighbor.
-        in_degree: dict = {node: 0 for node in nodes}
-        out_degree: dict = {}
-        for node in nodes:
-            nbrs = list(graph.neighbors(node))
-            out_degree[node] = len(nbrs)
-            for neighbor, _weight in nbrs:
-                if neighbor in in_degree:
-                    in_degree[neighbor] += 1
+    result = {}
 
-        return {
-            node: (in_degree[node] + out_degree[node]) / (N - 1)
-            for node in nodes
-        }
+    if not graph.directed:
+        # For undirected: degree = number of neighbors
+        for node in nodes:
+            deg = len(list(graph.neighbors(node)))
+            result[node] = deg / (N - 1)
+    else:
+        # For directed: use total degree (in + out)
+        out_degree = {node: 0 for node in nodes}
+        in_degree = {node: 0 for node in nodes}
+
+        for node in nodes:
+            for neighbor, _ in graph.neighbors(node):
+                out_degree[node] += 1
+                in_degree[neighbor] += 1
+
+        for node in nodes:
+            total_deg = out_degree[node] + in_degree[node]
+            result[node] = total_deg / (N - 1)
+
+    return result

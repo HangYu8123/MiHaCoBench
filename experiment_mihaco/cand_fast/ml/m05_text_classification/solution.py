@@ -1,18 +1,18 @@
+from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline
 
 
-def train(texts: list, labels: list) -> object:
+def train(texts: list[str], labels: list) -> object:
     """Fit a classifier on texts+labels and return a trained model object."""
     pipeline = Pipeline([
-        ("tfidf", TfidfVectorizer(sublinear_tf=True, ngram_range=(1, 2))),
-        ("clf", LogisticRegression(random_state=42, max_iter=1000, C=1.0)),
+        ("tfidf", TfidfVectorizer(ngram_range=(1, 2), max_df=0.95, min_df=1)),
+        ("clf", LogisticRegression(random_state=42, max_iter=1000)),
     ])
     pipeline.fit(texts, labels)
     return pipeline
 
 
-def predict(model, texts: list) -> list:
+def predict(model, texts: list[str]) -> list:
     """Return predicted labels (list of str) for the given texts."""
-    return list(model.predict(texts))
+    return model.predict(texts).tolist()

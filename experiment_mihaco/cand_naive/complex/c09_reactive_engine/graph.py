@@ -1,77 +1,100 @@
 """
-graph.py — Dependency graph tracking using networkx DiGraph.
+graph.py — Dependency tracking using a networkx DiGraph wrapper.
 
-Edges represent: dep -> dependent (i.e., if A depends on B, edge B -> A exists).
-This means `descendants(graph, x)` gives all cells that depend on x (transitively).
+The dependency graph stores edges as: dependency -> dependent.
+i.e., if cell B depends on cell A, there's an edge A -> B.
 """
-
 import networkx as nx
 
 
 class DependencyGraph:
     """
-    Wraps a networkx DiGraph where an edge A -> B means:
-    "B depends on A", i.e., B's formula uses A's value.
+    Wraps a networkx DiGraph for tracking reactive dataflow dependencies.
 
-    So networkx.descendants(graph, x) gives us all cells that (transitively) depend on x.
+    Edge direction: dep -> dependent (A -> B means "B depends on A").
     """
 
     def __init__(self):
         self._graph = nx.DiGraph()
 
-    def add_node(self, name):
+    def ensure_node(self, name):
         """Ensure a node exists in the graph."""
         if name not in self._graph:
             self._graph.add_node(name)
 
     def set_dependencies(self, name, deps):
         """
-        Set the dependencies of `name` to `deps`.
-        Removes old dependency edges, adds new ones.
-        Raises ValueError if this would create a cycle.
-        Returns the set of all transitive dependents of `name` (for invalidation).
+        Set the dependencies for a cell (replacing any existing ones).
+        Returns (True, set_of_old_dep_edges) on success.
+        Raises ValueError if the new dependencies would introduce a cycle.
+
+        Performs rollback on failure.
         """
-        # Snapshot old in-edges (predecessors of name)
-        old_deps = list(self._graph.predecessors(name))
+        # Remember old in-edges for rollback
+        old_predecessors = list(self._graph.predecessors(name)) if name in self._graph else []
 
-        # Remove old dependency edges
-        for old_dep in old_deps:
-            self._graph.remove_edge(old_dep, name)
+        # Ensure the node exists
+        self.ensure_node(name)
 
-        # Add new dependency edges
+        # Remove all existing in-edges for this node
+        edges_to_remove = [(pred, name) for pred in old_predecessors]
+        self._graph.remove_edges_from(edges_to_remove)
+
+        # Add new edges
+        new_edges = []
         for dep in deps:
-            self.add_node(dep)
-            self._graph.add_edge(dep, name)
+            self.ensure_node(dep)
+            new_edges.append((dep, name))
+
+        self._graph.add_edges_from(new_edges)
 
         # Check for cycles
         if not nx.is_directed_acyclic_graph(self._graph):
-            # Rollback: remove new edges, restore old ones
-            for dep in deps:
-                if self._graph.has_edge(dep, name):
-                    self._graph.remove_edge(dep, name)
-            for old_dep in old_deps:
-                self._graph.add_edge(old_dep, name)
+            # Rollback: remove new edges, restore old edges
+            self._graph.remove_edges_from(new_edges)
+            self._graph.add_edges_from(edges_to_remove)
             raise ValueError(
-                f"Setting formula for '{name}' with deps {deps} would create a cycle."
+                f"Setting dependencies for '{name}' would introduce a cycle."
             )
+
+        return old_predecessors
+
+    def remove_dependencies(self, name):
+        """Remove all incoming edges (dependencies) for a cell."""
+        if name in self._graph:
+            old_predecessors = list(self._graph.predecessors(name))
+            edges_to_remove = [(pred, name) for pred in old_predecessors]
+            self._graph.remove_edges_from(edges_to_remove)
 
     def get_transitive_dependents(self, name):
         """
         Return the set of all cells that transitively depend on `name`.
-        Uses networkx.descendants which follows edges A->B (B depends on A).
+        Uses networkx.descendants (follows edges name -> ... -> dependents).
         """
         if name not in self._graph:
             return set()
         return nx.descendants(self._graph, name)
 
-    def topological_order(self):
-        """
-        Return nodes in topological order (dependency before dependent).
-        """
-        return list(nx.topological_sort(self._graph))
+    def get_direct_deps(self, name):
+        """Return the direct dependencies of a cell (its predecessors)."""
+        if name not in self._graph:
+            return []
+        return list(self._graph.predecessors(name))
 
-    def remove_dependencies(self, name):
-        """Remove all incoming edges (dependency edges) for `name`."""
-        old_deps = list(self._graph.predecessors(name))
-        for dep in old_deps:
-            self._graph.remove_edge(dep, name)
+    def topological_order(self, names):
+        """
+        Return the given names sorted in topological order
+        (dependencies before dependents).
+        """
+        # Get the subgraph induced by these names and their dependencies
+        # We use topological_sort on the full graph, then filter
+        try:
+            topo = list(nx.topological_sort(self._graph))
+        except nx.NetworkXUnfeasible:
+            return list(names)
+
+        name_set = set(names)
+        return [n for n in topo if n in name_set]
+
+    def has_node(self, name):
+        return name in self._graph

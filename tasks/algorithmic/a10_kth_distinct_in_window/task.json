@@ -1,0 +1,13 @@
+{
+  "id": "a10_kth_distinct_in_window",
+  "category": "algorithmic",
+  "title": "k-th smallest distinct value in each sliding window (BIT over the value domain)",
+  "weight": 8,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "solution.py", "callables": ["kth_distinct_in_window"], "cli": false},
+  "grader": "grader/test_a10.py",
+  "steps": null,
+  "complexity_target": "O(n log V)",
+  "created": "2026-06-17",
+  "source": "For each width-w window, the k-th smallest distinct value (1-indexed), or None if fewer than k distinct values. Two coupled traps: an inclusive count boundary (exactly k distinct still yields a value) and a complexity gate (naive per-window rebuild is O(n*w) and times out; intended is a sliding multiset + Fenwick prefix walk). Ground truth: independent O(n*w) brute force on small inputs."
+}

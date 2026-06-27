@@ -1,184 +1,191 @@
 """
 engine.py — Public facade for the reactive dataflow engine.
 
-Implements `Engine` class which manages a reactive graph of named cells:
-- Constant cells hold a value directly.
-- Formula cells compute their value from other cells' values.
-
-Reads are lazy and memoized; changing a cell invalidates it and all transitive dependents.
+Exports:
+    Engine — the main class for the reactive dataflow engine.
 """
-
 from graph import DependencyGraph
 
 
-class _ConstantCell:
-    """A cell holding a constant value."""
+class _Cell:
+    """Internal representation of a cell (constant or formula)."""
 
-    def __init__(self, value):
-        self.value = value
+    __slots__ = ("name", "is_formula", "value", "deps", "fn",
+                 "cache_valid", "cached_value", "recompute_count")
+
+    def __init__(self, name):
+        self.name = name
         self.is_formula = False
-
-
-class _FormulaCell:
-    """A cell computed from a formula applied to dependencies."""
-
-    def __init__(self, deps, fn):
-        self.deps = list(deps)
-        self.fn = fn
-        self.is_formula = True
+        self.value = None       # for constant cells
+        self.deps = []          # list of dep names for formula cells
+        self.fn = None          # callable for formula cells
+        self.cache_valid = False
         self.cached_value = None
-        self.dirty = True
+        self.recompute_count = 0
 
 
 class Engine:
     """
     Reactive dataflow engine.
 
-    Cells are either constants or formulas. Formula values are lazily computed
-    and memoized. Updating a cell invalidates it and all transitive dependents.
+    Cells are either constants (set via set_value) or formulas
+    (set via set_formula). Reads are lazy and memoized. When a cell's
+    definition changes, it and all transitive dependents are invalidated.
     """
 
     def __init__(self):
+        self._cells: dict = {}       # name -> _Cell
         self._graph = DependencyGraph()
-        # _cells maps name -> _ConstantCell or _FormulaCell
-        self._cells = {}
-        # _cache maps name -> cached value (for constants, always valid; for formulas, when not dirty)
-        self._cache = {}
-        # _dirty: set of formula cell names whose cache is stale
-        self._dirty = set()
-        # _recompute_count: number of times each formula cell has been recomputed
-        self._recompute_count = {}
 
-    def set_value(self, name, value):
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def set_value(self, name, value) -> None:
         """
-        Define or replace a constant cell holding `value`.
-        Invalidates the cell and all transitive dependents.
+        Define or replace a constant cell.
+        Invalidates the cell's cache and all transitive dependents.
         """
-        # Get transitive dependents BEFORE changing the graph structure
-        # (if name already exists as a formula, remove its dependency edges first)
-        if name in self._cells and self._cells[name].is_formula:
+        if name not in self._cells:
+            self._cells[name] = _Cell(name)
+
+        cell = self._cells[name]
+
+        # If this was a formula cell, remove its dependency edges
+        if cell.is_formula:
             self._graph.remove_dependencies(name)
 
-        # Ensure node exists in graph
-        self._graph.add_node(name)
+        cell.is_formula = False
+        cell.value = value
+        cell.deps = []
+        cell.fn = None
 
-        # Compute transitive dependents before any change
-        transitive_deps = self._graph.get_transitive_dependents(name)
+        # Ensure the node exists in the graph
+        self._graph.ensure_node(name)
 
-        # Set constant cell
-        self._cells[name] = _ConstantCell(value)
-        self._cache[name] = value
+        # Invalidate this cell and all transitive dependents
+        self._invalidate(name)
 
-        # Ensure recompute_count entry exists (constants don't have recompute counts
-        # but we need KeyError behavior for get() and recompute_count() only when never defined)
-        if name not in self._recompute_count:
-            self._recompute_count[name] = 0
-
-        # Invalidate all transitive dependents
-        for dep in transitive_deps:
-            if dep in self._cells and self._cells[dep].is_formula:
-                self._dirty.add(dep)
-
-    def set_formula(self, name, deps, fn):
+    def set_formula(self, name, deps: list, fn) -> None:
         """
         Define or replace a formula cell.
-        The cell's value is fn(*[get(d) for d in deps]).
-        Raises ValueError if introducing a cycle.
+        Raises ValueError (with rollback) if this would create a cycle.
+        Invalidates the cell and all transitive dependents.
         """
-        # Ensure node exists
-        self._graph.add_node(name)
+        # Save previous state for rollback on non-graph errors
+        prev_cell = self._cells.get(name)
 
-        # This may raise ValueError and rollback if cycle detected
+        # Attempt to update the graph (raises ValueError on cycle, with rollback)
         self._graph.set_dependencies(name, deps)
 
-        # Ensure all dep nodes exist
-        for dep in deps:
-            self._graph.add_node(dep)
+        # Graph update succeeded — update the cell
+        if name not in self._cells:
+            self._cells[name] = _Cell(name)
 
-        # Get transitive dependents (including `name` itself is dirty)
-        transitive_deps = self._graph.get_transitive_dependents(name)
+        cell = self._cells[name]
+        cell.is_formula = True
+        cell.value = None
+        cell.deps = list(deps)
+        cell.fn = fn
 
-        # Set the formula cell
-        cell = _FormulaCell(deps, fn)
-        self._cells[name] = cell
-
-        # Initialize recompute count if first time
-        if name not in self._recompute_count:
-            self._recompute_count[name] = 0
-
-        # Mark name itself dirty (its definition changed)
-        self._dirty.add(name)
-
-        # Invalidate transitive dependents
-        for dep in transitive_deps:
-            if dep in self._cells and self._cells[dep].is_formula:
-                self._dirty.add(dep)
+        # Invalidate this cell and all transitive dependents
+        self._invalidate(name)
 
     def get(self, name):
         """
-        Return the cell's current value, recomputing lazily if dirty.
-        Raises KeyError if name is unknown.
+        Return the cell's value, computing lazily if the cache is dirty.
+        Raises KeyError for unknown names.
         """
         if name not in self._cells:
-            raise KeyError(f"Unknown cell: {name!r}")
+            raise KeyError(name)
 
         cell = self._cells[name]
 
         if not cell.is_formula:
-            # Constant cell: always clean
-            return self._cache[name]
+            # Constant cells are always "valid" — their value is just the stored value
+            return cell.value
 
         # Formula cell
-        if name not in self._dirty:
-            # Cache is clean
-            return self._cache[name]
+        if cell.cache_valid:
+            return cell.cached_value
 
-        # Need to recompute
+        # Recompute
         dep_values = [self.get(d) for d in cell.deps]
         result = cell.fn(*dep_values)
-        self._cache[name] = result
-        self._dirty.discard(name)
-        self._recompute_count[name] += 1
+        cell.cached_value = result
+        cell.cache_valid = True
+        cell.recompute_count += 1
         return result
 
-    def recompute_count(self, name):
+    def recompute_count(self, name) -> int:
         """
-        Return how many times `name` has been recomputed.
-        Raises KeyError if name is unknown.
+        Return how many times `name` has actually been (re)computed.
+        Raises KeyError for unknown names.
         """
         if name not in self._cells:
-            raise KeyError(f"Unknown cell: {name!r}")
-        return self._recompute_count.get(name, 0)
+            raise KeyError(name)
+        return self._cells[name].recompute_count
 
-    def batch(self, updates):
+    def batch(self, updates: dict) -> None:
         """
-        Apply multiple set_value updates atomically.
-        Each affected cell recomputes at most once on the next reads.
-        Invalidation is set-based (not per-edge).
+        Apply several set_value updates atomically.
+        All affected cells are invalidated once (set-based), not per-edge.
         """
-        # Collect all transitive dependents across all updated cells
-        all_dirty = set()
+        # Collect all cells that need invalidation
+        all_to_invalidate = set()
 
         for name, value in updates.items():
-            # Remove formula dependencies if switching from formula to constant
-            if name in self._cells and self._cells[name].is_formula:
+            if name not in self._cells:
+                self._cells[name] = _Cell(name)
+
+            cell = self._cells[name]
+
+            # If this was a formula cell, remove its dependency edges
+            if cell.is_formula:
                 self._graph.remove_dependencies(name)
 
-            # Ensure node exists
-            self._graph.add_node(name)
+            cell.is_formula = False
+            cell.value = value
+            cell.deps = []
+            cell.fn = None
 
-            # Collect transitive dependents
-            transitive_deps = self._graph.get_transitive_dependents(name)
-            all_dirty.update(transitive_deps)
+            # Ensure the node exists in the graph
+            self._graph.ensure_node(name)
 
-            # Set constant cell
-            self._cells[name] = _ConstantCell(value)
-            self._cache[name] = value
+            # Collect the cell itself and its transitive dependents
+            all_to_invalidate.add(name)
+            all_to_invalidate.update(self._graph.get_transitive_dependents(name))
 
-            if name not in self._recompute_count:
-                self._recompute_count[name] = 0
+        # Invalidate all affected cells once (set-based)
+        for cell_name in all_to_invalidate:
+            if cell_name in self._cells:
+                cell = self._cells[cell_name]
+                if cell.is_formula:
+                    cell.cache_valid = False
+                    cell.cached_value = None
 
-        # Mark all transitive dependents as dirty (set-based, not per-edge)
-        for dep in all_dirty:
-            if dep in self._cells and self._cells[dep].is_formula:
-                self._dirty.add(dep)
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _invalidate(self, name) -> None:
+        """
+        Invalidate the cache of `name` and all transitive dependents.
+        For the cell itself: if it's a formula, mark dirty.
+        For transitive dependents: mark their caches dirty.
+        """
+        # The cell itself
+        if name in self._cells:
+            cell = self._cells[name]
+            if cell.is_formula:
+                cell.cache_valid = False
+                cell.cached_value = None
+
+        # All transitive dependents
+        dependents = self._graph.get_transitive_dependents(name)
+        for dep_name in dependents:
+            if dep_name in self._cells:
+                dep_cell = self._cells[dep_name]
+                if dep_cell.is_formula:
+                    dep_cell.cache_valid = False
+                    dep_cell.cached_value = None

@@ -1,19 +1,12 @@
-"""
-parser.py — Recursive-descent / Pratt parser that builds an AST.
-
-AST node types:
-  NumberNode(value: float)
-  StringNode(value: str)
-  CellRefNode(ref: str)
-  RangeNode(ref: str)
-  BinOpNode(op: str, left, right)
-  UnaryMinusNode(operand)
-  FuncCallNode(name: str, args: list)
-  IfNode(cond_op: str, lhs, rhs, true_val, false_val)
-"""
+"""Recursive-descent parser that builds an AST from a token list."""
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, List, Optional
+
+from lexer import (
+    Token, TT_NUMBER, TT_STRING, TT_RANGE, TT_IDENT,
+    TT_OP, TT_COMPARE, TT_LPAREN, TT_RPAREN, TT_COMMA, TT_EOF,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -21,242 +14,214 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 @dataclass
-class NumberNode:
-    value: float
+class Num:
+    val: float
 
 
 @dataclass
-class StringNode:
-    value: str
+class Str:
+    val: str
 
 
 @dataclass
-class CellRefNode:
+class CellRef:
     ref: str
 
 
 @dataclass
-class RangeNode:
-    ref: str
+class Range:
+    start: str
+    end: str
 
 
 @dataclass
-class BinOpNode:
+class BinOp:
     op: str
     left: Any
     right: Any
 
 
 @dataclass
-class UnaryMinusNode:
-    operand: Any
-
-
-@dataclass
-class FuncCallNode:
+class FuncCall:
     name: str
-    args: list = field(default_factory=list)
+    args: List[Any]
 
 
 @dataclass
-class IfNode:
+class IfExpr:
     cond_op: str
-    lhs: Any
-    rhs: Any
+    left: Any
+    right: Any
     true_val: Any
     false_val: Any
+
+
+# ---------------------------------------------------------------------------
+# Precedence / associativity tables
+# ---------------------------------------------------------------------------
+
+_PREC = {'+': 1, '-': 1, '*': 2, '/': 2, '^': 3}
+_RIGHT_ASSOC = {'^'}
+_COMPARE_OPS = {'=', '<>', '<', '<=', '>', '>='}
 
 
 # ---------------------------------------------------------------------------
 # Parser
 # ---------------------------------------------------------------------------
 
-_COMPARISON_OPS = {'=', '<>', '<', '<=', '>', '>='}
-
-
 class Parser:
-    def __init__(self, tokens: list):
+    def __init__(self, tokens: List[Token]):
         self._tokens = tokens
         self._pos = 0
 
-    # ------------------------------------------------------------------
-    # Token helpers
-    # ------------------------------------------------------------------
+    def _peek(self) -> Token:
+        return self._tokens[self._pos]
 
-    def _peek(self):
-        if self._pos < len(self._tokens):
-            return self._tokens[self._pos]
-        return None
-
-    def _consume(self):
+    def _consume(self, expected_type: Optional[str] = None) -> Token:
         tok = self._tokens[self._pos]
+        if expected_type is not None and tok.type != expected_type:
+            raise SyntaxError(
+                f"Expected {expected_type} but got {tok.type}={tok.value!r}"
+            )
         self._pos += 1
         return tok
 
-    def _expect(self, tok_type, tok_val=None):
-        tok = self._consume()
-        if tok[0] != tok_type:
-            raise ValueError(f"Expected {tok_type!r} but got {tok!r}")
-        if tok_val is not None and tok[1] != tok_val:
-            raise ValueError(f"Expected {tok_val!r} but got {tok[1]!r}")
-        return tok
+    # ------------------------------------------------------------------
+    # Primary expression
+    # ------------------------------------------------------------------
 
-    def _match_op(self, *ops):
+    def _parse_primary(self) -> Any:
         tok = self._peek()
-        if tok and tok[0] == 'OP' and tok[1] in ops:
-            return self._consume()
-        return None
 
-    # ------------------------------------------------------------------
-    # Grammar rules (precedence climbing)
-    # ------------------------------------------------------------------
-
-    def parse(self):
-        node = self._parse_additive()
-        if self._peek() is not None:
-            raise ValueError(f"Unexpected token after expression: {self._peek()!r}")
-        return node
-
-    def _parse_additive(self):
-        """Handles + and - (left-associative, precedence 1)."""
-        left = self._parse_multiplicative()
-        while True:
-            tok = self._match_op('+', '-')
-            if tok is None:
-                break
-            right = self._parse_multiplicative()
-            left = BinOpNode(tok[1], left, right)
-        return left
-
-    def _parse_multiplicative(self):
-        """Handles * and / (left-associative, precedence 2)."""
-        left = self._parse_power()
-        while True:
-            tok = self._match_op('*', '/')
-            if tok is None:
-                break
-            right = self._parse_power()
-            left = BinOpNode(tok[1], left, right)
-        return left
-
-    def _parse_power(self):
-        """Handles ^ (right-associative, precedence 3)."""
-        base = self._parse_unary()
-        tok = self._match_op('^')
-        if tok is None:
-            return base
-        # Right-associative: recurse at the same level
-        exponent = self._parse_power()
-        return BinOpNode('^', base, exponent)
-
-    def _parse_unary(self):
-        """Handles unary minus."""
-        tok = self._match_op('-')
-        if tok:
+        # Unary minus
+        if tok.type == TT_OP and tok.value == '-':
+            self._consume()
             operand = self._parse_primary()
-            # Fold unary minus into number literals directly
-            if isinstance(operand, NumberNode):
-                return NumberNode(-operand.value)
-            return UnaryMinusNode(operand)
-        return self._parse_primary()
+            return BinOp('-', Num(0.0), operand)
 
-    def _parse_primary(self):
-        tok = self._peek()
-        if tok is None:
-            raise ValueError("Unexpected end of formula")
-
-        # Numeric literal
-        if tok[0] == 'NUMBER':
-            self._consume()
-            return NumberNode(tok[1])
-
-        # String literal
-        if tok[0] == 'STRING':
-            self._consume()
-            return StringNode(tok[1])
-
-        # Range (e.g. A1:B3) — only valid inside function calls
-        if tok[0] == 'RANGE':
-            self._consume()
-            return RangeNode(tok[1])
-
-        # Cell reference
-        if tok[0] == 'CELL':
-            self._consume()
-            return CellRefNode(tok[1])
-
-        # Function call: IF, SUM, AVG, MIN, MAX
-        if tok[0] == 'FUNC':
-            return self._parse_func_call()
-
-        # Parenthesised sub-expression
-        if tok[0] == 'OP' and tok[1] == '(':
-            self._consume()  # eat '('
-            node = self._parse_additive()
-            self._expect('OP', ')')
+        # Parenthesised expression
+        if tok.type == TT_LPAREN:
+            self._consume(TT_LPAREN)
+            node = self._parse_expr(1)
+            self._consume(TT_RPAREN)
             return node
 
-        raise ValueError(f"Unexpected token: {tok!r}")
+        # Number literal
+        if tok.type == TT_NUMBER:
+            self._consume()
+            return Num(float(tok.value))
 
-    def _parse_func_call(self):
-        name_tok = self._consume()   # FUNC token
-        name = name_tok[1]
-        self._expect('OP', '(')
+        # String literal (strip surrounding double-quotes)
+        if tok.type == TT_STRING:
+            self._consume()
+            return Str(tok.value[1:-1])
 
-        if name == 'IF':
+        # Range literal (must be checked before IDENT since both match uppercase)
+        if tok.type == TT_RANGE:
+            self._consume()
+            start, end = tok.value.split(':')
+            return Range(start, end)
+
+        # Identifier: either a function call or a cell reference
+        if tok.type == TT_IDENT:
+            self._consume()
+            name = tok.value
+
+            # Function call?
+            if self._peek().type == TT_LPAREN:
+                return self._parse_func_call(name)
+
+            # Cell reference: uppercase letters followed by digits
+            import re
+            if re.fullmatch(r'[A-Z]+\d+', name):
+                return CellRef(name)
+
+            raise SyntaxError(f"Unknown identifier: {name!r}")
+
+        raise SyntaxError(f"Unexpected token {tok.type}={tok.value!r}")
+
+    # ------------------------------------------------------------------
+    # Function call (already consumed the function name)
+    # ------------------------------------------------------------------
+
+    def _parse_func_call(self, name: str) -> Any:
+        upper = name.upper()
+        self._consume(TT_LPAREN)
+
+        if upper == 'IF':
             return self._parse_if()
 
-        # SUM / AVG / MIN / MAX: single range OR comma-separated list
+        # Aggregate functions: SUM, AVG, MIN, MAX, or generic
         args = self._parse_arg_list()
-        self._expect('OP', ')')
-        return FuncCallNode(name, args)
+        self._consume(TT_RPAREN)
+        return FuncCall(upper, args)
 
-    def _parse_if(self):
-        """IF(lhs OP rhs, true_val, false_val) — already consumed 'IF('."""
-        lhs = self._parse_additive()
+    def _parse_if(self) -> IfExpr:
+        """Parse IF(condition, true_val, false_val)."""
+        # condition is: left_expr  compare_op  right_expr
+        left = self._parse_expr(1)
+        cmp_tok = self._peek()
+        if cmp_tok.type != TT_COMPARE:
+            raise SyntaxError(
+                f"Expected comparison operator in IF condition, got {cmp_tok.type}={cmp_tok.value!r}"
+            )
+        self._consume()
+        cond_op = cmp_tok.value
+        right = self._parse_expr(1)
 
-        # Comparison operator
-        tok = self._consume()
-        if tok[0] != 'OP' or tok[1] not in _COMPARISON_OPS:
-            raise ValueError(f"Expected comparison operator in IF condition, got {tok!r}")
-        cond_op = tok[1]
+        self._consume(TT_COMMA)
+        true_val = self._parse_expr(1)
+        self._consume(TT_COMMA)
+        false_val = self._parse_expr(1)
+        self._consume(TT_RPAREN)
 
-        rhs = self._parse_additive()
+        return IfExpr(cond_op, left, right, true_val, false_val)
 
-        self._expect('OP', ',')
-        true_val = self._parse_value_or_expr()
-        self._expect('OP', ',')
-        false_val = self._parse_value_or_expr()
-        self._expect('OP', ')')
-
-        return IfNode(cond_op, lhs, rhs, true_val, false_val)
-
-    def _parse_value_or_expr(self):
-        """Parse a branch value: string literal, numeric expression, or cell ref."""
-        tok = self._peek()
-        if tok and tok[0] == 'STRING':
-            self._consume()
-            return StringNode(tok[1])
-        return self._parse_additive()
-
-    def _parse_arg_list(self):
-        """Parse comma-separated arguments for SUM/AVG/MIN/MAX."""
-        args = []
-        # First argument
-        args.append(self._parse_single_arg())
-        while self._match_op(','):
-            args.append(self._parse_single_arg())
+    def _parse_arg_list(self) -> List[Any]:
+        """Parse comma-separated list of arguments."""
+        args: List[Any] = []
+        if self._peek().type == TT_RPAREN:
+            return args
+        args.append(self._parse_expr(1))
+        while self._peek().type == TT_COMMA:
+            self._consume(TT_COMMA)
+            args.append(self._parse_expr(1))
         return args
 
-    def _parse_single_arg(self):
-        """One argument: either a RANGE token or a general additive expression."""
-        tok = self._peek()
-        if tok and tok[0] == 'RANGE':
+    # ------------------------------------------------------------------
+    # Binary expression with precedence climbing
+    # ------------------------------------------------------------------
+
+    def _parse_expr(self, min_prec: int) -> Any:
+        left = self._parse_primary()
+
+        while True:
+            tok = self._peek()
+            if tok.type != TT_OP:
+                break
+            op = tok.value
+            prec = _PREC.get(op)
+            if prec is None or prec < min_prec:
+                break
             self._consume()
-            return RangeNode(tok[1])
-        return self._parse_additive()
+            next_min = prec if op in _RIGHT_ASSOC else prec + 1
+            right = self._parse_expr(next_min)
+            left = BinOp(op, left, right)
+
+        return left
+
+    # ------------------------------------------------------------------
+    # Entry point
+    # ------------------------------------------------------------------
+
+    def parse(self) -> Any:
+        node = self._parse_expr(1)
+        if self._peek().type != TT_EOF:
+            tok = self._peek()
+            raise SyntaxError(f"Unexpected token after expression: {tok.type}={tok.value!r}")
+        return node
 
 
-def parse(tokens: list):
-    """Parse a token list and return the root AST node."""
+def parse(tokens) -> Any:
+    """Public entry point: parse a token list into an AST."""
     return Parser(tokens).parse()

@@ -12,112 +12,108 @@ import sys
 
 import numpy as np
 
+
 INCOME_CATEGORIES = {"salary", "freelance", "bonus", "interest"}
 
 
-def compute_provenance(in_path: str) -> str:
-    with open(in_path, "rb") as f:
+def sha256_of_file(path):
+    with open(path, "rb") as f:
         return hashlib.sha256(f.read()).hexdigest()
 
 
-def round6(v):
-    return round(float(v), 6)
+def round6(x):
+    return round(float(x), 6)
 
 
 def step1_parse_sort(data):
     """Read transactions list and sort ascending by date."""
     transactions = data["transactions"]
-    sorted_txns = sorted(transactions, key=lambda x: x["date"])
+    sorted_txns = sorted(transactions, key=lambda r: r["date"])
     return sorted_txns
 
 
 def step2_sign_normalize(data):
     """Augment each row with a signed 'net' field."""
-    rows = data["data"]
+    rows = data  # list from step 1
     result = []
     for row in rows:
-        new_row = dict(row)
-        category = row.get("category", "")
+        row = dict(row)
         amount = float(row["amount"])
-        if category in INCOME_CATEGORIES:
+        if row["category"] in INCOME_CATEGORIES:
             net = round6(amount)
         else:
             net = round6(-amount)
-        new_row["net"] = net
-        result.append(new_row)
+        row["net"] = net
+        result.append(row)
     return result
 
 
 def step3_monthly_net(data):
     """Sum net per calendar month."""
-    rows = data["data"]
+    rows = data  # list from step 2
     monthly = {}
     for row in rows:
-        month = row["date"][:7]
-        monthly[month] = monthly.get(month, 0.0) + row["net"]
+        month = row["date"][:7]  # YYYY-MM
+        monthly[month] = monthly.get(month, 0.0) + float(row["net"])
     # Round values
     return {k: round6(v) for k, v in monthly.items()}
 
 
 def step4_cumulative_balance(data):
-    """Running cumulative sum of monthly nets in ascending month order."""
-    monthly = data["data"]
+    """Compute cumulative balance in ascending month order."""
+    monthly = data  # dict from step 3
     sorted_months = sorted(monthly.keys())
     result = []
     running = 0.0
     for month in sorted_months:
-        running += monthly[month]
+        running += float(monthly[month])
         result.append([month, round6(running)])
     return result
 
 
 def step5_trend_fit(data):
     """Fit balance ~ slope * month_index + intercept using numpy.polyfit."""
-    pairs = data["data"]  # list of [month, balance]
+    pairs = data  # list of [month, balance] from step 4
     n = len(pairs)
-    idx = np.arange(n, dtype=float)
+    indices = np.arange(n, dtype=float)
     balances = np.array([p[1] for p in pairs], dtype=float)
-    coeffs = np.polyfit(idx, balances, 1)
+    coeffs = np.polyfit(indices, balances, 1)
     slope = round6(coeffs[0])
     intercept = round6(coeffs[1])
     return {"slope": slope, "intercept": intercept, "n_months": n}
 
 
 def step6_project(data):
-    """Project the next 3 month indices beyond historical data."""
-    d = data["data"]
-    slope = d["slope"]
-    intercept = d["intercept"]
-    n_months = d["n_months"]
+    """Project the next 3 months using the fitted line."""
+    slope = float(data["slope"])
+    intercept = float(data["intercept"])
+    n_months = int(data["n_months"])
     projection = []
-    for i in range(3):
-        idx = n_months + i
-        projected = round6(slope * idx + intercept)
-        projection.append([idx, projected])
-    return {"projection": projection, "slope": slope, "n_months": n_months}
+    for i in range(n_months, n_months + 3):
+        projected = round6(slope * i + intercept)
+        projection.append([i, projected])
+    return {"projection": projection, "slope": round6(slope), "n_months": n_months}
 
 
 def step7_scenario(data):
     """Apply +10% savings scenario: multiply each projected balance by 1.10."""
-    d = data["data"]
-    projection = d["projection"]
-    slope = d["slope"]
-    n_months = d["n_months"]
+    projection = data["projection"]
+    slope = data["slope"]
+    n_months = data["n_months"]
     adjusted = [[idx, round6(bal * 1.10)] for idx, bal in projection]
-    return {"projection": adjusted, "slope": slope, "n_months": n_months}
+    return {"projection": adjusted, "slope": round6(float(slope)), "n_months": int(n_months)}
 
 
 def step8_summary(data):
-    """Summarize: final balance, slope, n_months."""
-    d = data["data"]
-    projection = d["projection"]
-    slope = d["slope"]
-    n_months = d["n_months"]
+    """Summarize with final_balance, slope, n_months."""
+    projection = data["projection"]
+    slope = data["slope"]
+    n_months = data["n_months"]
     final_balance = round6(projection[-1][1])
-    return {"final_balance": final_balance, "slope": slope, "n_months": n_months}
+    return {"final_balance": final_balance, "slope": round6(float(slope)), "n_months": int(n_months)}
 
 
-STEP_FUNCTIONS = {
+STEP_FUNCS = {
     1: step1_parse_sort,
     2: step2_sign_normalize,
     3: step3_monthly_net,
@@ -132,28 +128,37 @@ STEP_FUNCTIONS = {
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--step", type=int, required=True)
-    parser.add_argument("--in", dest="in_path", required=True)
-    parser.add_argument("--out", dest="out_path", required=True)
+    parser.add_argument("--in", dest="input", required=True)
+    parser.add_argument("--out", dest="output", required=True)
     args = parser.parse_args()
 
-    step_k = args.step
-    in_path = args.in_path
-    out_path = args.out_path
+    in_path = args.input
+    out_path = args.output
+    step = args.step
 
-    provenance = compute_provenance(in_path)
+    # Compute provenance from the input file bytes
+    provenance = sha256_of_file(in_path)
 
+    # Read input JSON
     with open(in_path, "r", encoding="utf-8") as f:
-        in_data = json.load(f)
+        in_json = json.load(f)
 
-    if step_k not in STEP_FUNCTIONS:
-        print(f"Unknown step: {step_k}", file=sys.stderr)
-        sys.exit(1)
+    # For step 1, input has "transactions" key; for later steps, use "data" key
+    if step == 1:
+        data = in_json
+    else:
+        data = in_json["data"]
 
-    fn = STEP_FUNCTIONS[step_k]
-    result = fn(in_data)
+    # Run the step function
+    func = STEP_FUNCS[step]
+    result = func(data)
 
-    out_obj = {"step": step_k, "data": result, "provenance": provenance}
-
+    # Write output
+    out_obj = {
+        "step": step,
+        "data": result,
+        "provenance": provenance,
+    }
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(out_obj, f)
 

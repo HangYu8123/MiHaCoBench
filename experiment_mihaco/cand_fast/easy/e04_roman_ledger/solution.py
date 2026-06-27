@@ -1,132 +1,89 @@
-"""
-Roman numeral encoder / decoder / adder.
+"""Roman numeral encoder / decoder / adder."""
 
-Public contract:
-    to_roman(n: int) -> str
-    from_roman(s: str) -> int
-    add_roman(a: str, b: str) -> str
-"""
-
-# Ordered (descending) list of (value, symbol) pairs for greedy encoding.
-_TO_ROMAN_TABLE = [
+_TABLE = [
     (1000, "M"),
-    (900, "CM"),
-    (500, "D"),
-    (400, "CD"),
-    (100, "C"),
-    (90, "XC"),
-    (50, "L"),
-    (40, "XL"),
-    (10, "X"),
-    (9, "IX"),
-    (5, "V"),
-    (4, "IV"),
-    (1, "I"),
+    (900,  "CM"),
+    (500,  "D"),
+    (400,  "CD"),
+    (100,  "C"),
+    (90,   "XC"),
+    (50,   "L"),
+    (40,   "XL"),
+    (10,   "X"),
+    (9,    "IX"),
+    (5,    "V"),
+    (4,    "IV"),
+    (1,    "I"),
 ]
 
-# Map from Roman character to its base value.
-_ROMAN_VALUES = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
-
-# Set of valid Roman characters.
-_VALID_CHARS = frozenset(_ROMAN_VALUES.keys())
+_VAL_MAP = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
 
 
 def to_roman(n: int) -> str:
-    """Convert an integer to a Roman-numeral string.
-
-    Args:
-        n: An integer in the range 1..3999 (inclusive).
-
-    Returns:
-        The standard subtractive Roman-numeral representation.
-
-    Raises:
-        ValueError: If n is not an integer or is outside 1..3999.
-    """
-    if not isinstance(n, int) or isinstance(n, bool):
-        raise ValueError(f"n must be an int, got {type(n).__name__}")
-    if n < 1 or n > 3999:
-        raise ValueError(f"n must be in range 1..3999, got {n}")
-
-    result = []
-    remaining = n
-    for value, symbol in _TO_ROMAN_TABLE:
-        while remaining >= value:
-            result.append(symbol)
-            remaining -= value
-    return "".join(result)
+    """Convert an integer in 1..3999 to its Roman-numeral string."""
+    if not (1 <= n <= 3999):
+        raise ValueError(f"n={n} is out of range 1..3999")
+    result = ""
+    for value, symbol in _TABLE:
+        while n >= value:
+            result += symbol
+            n -= value
+    return result
 
 
 def from_roman(s: str) -> int:
     """Convert a Roman-numeral string to an integer.
 
-    Validity is defined strictly as: to_roman(from_roman(s)) == s.
-    Any string that does not satisfy this round-trip is rejected.
-
-    Args:
-        s: A non-empty string of uppercase Roman characters (I V X L C D M).
-
-    Returns:
-        The integer value corresponding to the Roman numeral.
-
-    Raises:
-        ValueError: If s is empty, contains invalid characters, or does not
-                    represent a valid standard Roman numeral.
+    Raises ValueError for any malformed input, including strings that do not
+    represent a valid canonical Roman numeral (as produced by to_roman).
     """
-    if not isinstance(s, str):
-        raise ValueError(f"s must be a str, got {type(s).__name__}")
-    if len(s) == 0:
-        raise ValueError("Empty string is not a valid Roman numeral")
-    # Validate character set — must be uppercase Roman letters only.
-    invalid = set(s) - _VALID_CHARS
-    if invalid:
-        raise ValueError(
-            f"Invalid character(s) in Roman numeral string: {sorted(invalid)}"
-        )
+    if not s:
+        raise ValueError("empty string is not a valid Roman numeral")
 
-    # Parse left-to-right using the standard subtractive rule:
-    # if current value < next value, subtract current; otherwise add current.
+    # Validate all characters are in the allowed set
+    for ch in s:
+        if ch not in _VAL_MAP:
+            raise ValueError(f"invalid character {ch!r} in Roman numeral string")
+
+    # Parse left-to-right: subtract when current < next, otherwise add
     total = 0
-    for i, ch in enumerate(s):
-        cur_val = _ROMAN_VALUES[ch]
+    for i in range(len(s)):
+        cur = _VAL_MAP[s[i]]
         if i + 1 < len(s):
-            next_val = _ROMAN_VALUES[s[i + 1]]
-            if cur_val < next_val:
-                total -= cur_val
+            nxt = _VAL_MAP[s[i + 1]]
+            if cur < nxt:
+                total -= cur
             else:
-                total += cur_val
+                total += cur
         else:
-            total += cur_val
+            total += cur
 
-    # Round-trip validation: a valid Roman numeral must survive the round-trip.
-    if total < 1 or total > 3999 or to_roman(total) != s:
-        raise ValueError(f"'{s}' is not a valid standard Roman numeral")
+    # Mandatory round-trip check: valid iff to_roman(total) == s
+    # Wrap to catch ValueError from to_roman (e.g. total out of 1..3999)
+    try:
+        canonical = to_roman(total)
+    except ValueError:
+        raise ValueError(f"malformed Roman numeral string: {s!r}")
+
+    if canonical != s:
+        raise ValueError(
+            f"non-canonical Roman numeral string: {s!r} "
+            f"(canonical form is {canonical!r})"
+        )
 
     return total
 
 
 def add_roman(a: str, b: str) -> str:
-    """Add two Roman-numeral strings and return their sum as a Roman numeral.
+    """Add two Roman-numeral strings and return the result as a Roman numeral.
 
-    Args:
-        a: A valid Roman-numeral string.
-        b: A valid Roman-numeral string.
-
-    Returns:
-        The Roman-numeral encoding of (value(a) + value(b)).
-
-    Raises:
-        ValueError: If either a or b is not a valid Roman numeral, or if the
-                    sum exceeds 3999.
+    Raises ValueError if either input is invalid or if the sum exceeds 3999.
     """
-    # Let from_roman propagate ValueError for invalid inputs.
-    val_a = from_roman(a)
-    val_b = from_roman(b)
-    total = val_a + val_b
+    ia = from_roman(a)
+    ib = from_roman(b)
+    total = ia + ib
     if total > 3999:
         raise ValueError(
-            f"Sum {total} exceeds maximum Roman numeral value 3999 "
-            f"(from '{a}' + '{b}')"
+            f"sum {total} exceeds the maximum representable value of 3999"
         )
-    # total >= 2 (both inputs are >= 1), so to_roman is always valid here.
     return to_roman(total)

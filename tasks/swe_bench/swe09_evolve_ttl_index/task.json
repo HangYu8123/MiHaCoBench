@@ -1,0 +1,13 @@
+{
+  "id": "swe09_evolve_ttl_index",
+  "category": "swe_bench",
+  "title": "Range-invalidate must keep a secondary index consistent across modules",
+  "weight": 6,
+  "packages": ["stdlib"],
+  "entrypoints": {"module": "db.py", "callables": ["DB"], "cli": false},
+  "grader": "grader/test_swe09.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-17",
+  "source": "Multi-module TTL+LRU store with a secondary field index. The added range_invalidate operation must preserve the store/index consistency invariant that every other removal path enforces via the shared private _unlink helper (SWE-EVO-style cross-module evolution). Grader loads >=2 modules; PASS_TO_PASS guards existing behaviour, FAIL_TO_PASS pins index consistency after range invalidation."
+}

@@ -1,4 +1,4 @@
-"""router.py — Route and Router classes with path converter support."""
+"""router.py — Route and Router classes for path matching with converters."""
 
 import re
 
@@ -7,50 +7,36 @@ class Route:
     """Represents a single URL rule."""
 
     def __init__(self, path_template: str, methods: list, handler) -> None:
-        self.path_template = path_template
-        self.methods = [m.upper() for m in methods]
+        self.path_template: str = path_template
+        self.methods: list = [m.upper() for m in methods]
         self.handler = handler
-        # Compile the path template into a regex pattern and record converter types
-        self._pattern, self._converters = self._compile(path_template)
 
-    def _compile(self, template: str):
-        """Convert a path template into a compiled regex and a dict of
-        param_name -> converter ('str' or 'int')."""
-        converters = {}
-        # Escape the template for regex, then replace the converter placeholders
-        # We need to handle <int:name> and <name> specially before escaping.
-        # Split by the converter tokens to build regex segments.
-        parts = re.split(r'(<(?:int:)?[^>]+>)', template)
-        regex_parts = []
-        for part in parts:
-            if part.startswith('<') and part.endswith('>'):
-                inner = part[1:-1]
-                if inner.startswith('int:'):
-                    name = inner[4:]
-                    converters[name] = 'int'
-                    regex_parts.append(f'(?P<{name}>[0-9]+)')
-                else:
-                    name = inner
-                    converters[name] = 'str'
-                    regex_parts.append(f'(?P<{name}>[^/]+)')
-            else:
-                regex_parts.append(re.escape(part))
-        pattern = re.compile('^' + ''.join(regex_parts) + '$')
-        return pattern, converters
+        # Track which captured param names are int-typed
+        self.int_params: set = set()
 
-    def match_path(self, path: str):
-        """Try to match path against this route's pattern.
-        Returns a dict of captured params on success, or None on failure."""
-        m = self._pattern.match(path)
-        if m is None:
-            return None
-        params = {}
-        for name, value in m.groupdict().items():
-            if self._converters.get(name) == 'int':
-                params[name] = int(value)
+        # Build regex from path template.
+        # Strategy: replace all <...> tokens in a single pass to avoid
+        # the str-converter regex matching inside already-substituted patterns.
+        # Token forms: <int:name> or <name>
+        pattern = path_template
+
+        def replace_converter(match):
+            token = match.group(1)  # e.g. "int:id" or "name"
+            if token.startswith("int:"):
+                name = token[4:]
+                self.int_params.add(name)
+                return "(?P<" + name + ">\\d+)"
             else:
-                params[name] = value
-        return params
+                name = token
+                return "(?P<" + name + ">[^/]+)"
+
+        # Match only raw template tokens: <word> or <int:word>
+        # The pattern r"<([^>]+)>" on the original (un-substituted) template is safe
+        # because we do a single-pass replacement.
+        pattern = re.sub(r"<([^>]+)>", replace_converter, pattern)
+
+        # Anchor the pattern
+        self.regex = re.compile(f"^{pattern}$")
 
 
 class Router:
@@ -64,20 +50,37 @@ class Router:
         self._routes.append(Route(path_template, methods, handler))
 
     def match(self, path: str, method: str) -> tuple:
-        """Match path and method.
+        """Match *path* and *method*.
 
-        Returns (handler, path_params) on success.
-        Returns (None, 404) if no route matches the path.
-        Returns (None, 405) if the path matches but the method does not.
+        Returns ``(handler, path_params)`` on success.
+        Returns ``(None, 404)`` if no route matches the path.
+        Returns ``(None, 405)`` if the path matches but the method does not.
+
+        Two-pass algorithm: first collect all path-matching routes, then check
+        method. This ensures correct 405 vs 404 discrimination.
         """
-        method = method.upper()
-        path_matched = False
+        method_upper = method.upper()
+
+        # First pass: find all routes whose regex matches the path
+        path_matching = []
         for route in self._routes:
-            params = route.match_path(path)
-            if params is not None:
-                path_matched = True
-                if method in route.methods:
-                    return (route.handler, params)
-        if path_matched:
-            return (None, 405)
-        return (None, 404)
+            m = route.regex.fullmatch(path)
+            if m is not None:
+                path_matching.append((route, m))
+
+        if not path_matching:
+            return (None, 404)
+
+        # Second pass: find a route that also matches the method
+        for route, m in path_matching:
+            if method_upper in route.methods:
+                # Cast int-typed params
+                raw_params = m.groupdict()
+                path_params = {
+                    k: int(v) if k in route.int_params else v
+                    for k, v in raw_params.items()
+                }
+                return (route.handler, path_params)
+
+        # Path matched but no method matched
+        return (None, 405)

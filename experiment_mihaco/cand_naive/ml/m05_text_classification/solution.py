@@ -1,11 +1,11 @@
 """
 Binary text classifier: sports vs tech.
-Uses TfidfVectorizer + LogisticRegression wrapped in a Pipeline.
+Uses TfidfVectorizer + LogisticRegression pipeline.
 """
 
-from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
 
 
 def train(texts: list[str], labels: list) -> object:
@@ -13,15 +13,14 @@ def train(texts: list[str], labels: list) -> object:
     pipeline = Pipeline([
         ("tfidf", TfidfVectorizer(
             ngram_range=(1, 2),
-            min_df=1,
-            max_df=0.95,
+            max_features=10000,
             sublinear_tf=True,
+            min_df=1,
         )),
         ("clf", LogisticRegression(
-            C=5.0,
-            max_iter=1000,
             random_state=42,
-            solver="lbfgs",
+            max_iter=1000,
+            C=1.0,
         )),
     ])
     pipeline.fit(texts, labels)

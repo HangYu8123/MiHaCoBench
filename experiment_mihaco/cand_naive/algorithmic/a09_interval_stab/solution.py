@@ -11,21 +11,20 @@ def min_stabbing_points(intervals: list[tuple]) -> int:
     if not intervals:
         return 0
 
-    # Sort by right endpoint (greedy: pick rightmost point of earliest-ending interval)
-    sorted_intervals = sorted(intervals, key=lambda iv: iv[1])
+    # Sort by right endpoint (greedy: always pick the rightmost possible point
+    # that still stabs the current interval, which is b itself)
+    sorted_intervals = sorted(intervals, key=lambda x: x[1])
 
     count = 0
-    # Use a sentinel that is guaranteed to not stab any interval initially
-    last_point = None
+    last_point = None  # the last stabbing point chosen
 
     for a, b in sorted_intervals:
-        # If no point yet, or the last chosen point doesn't stab this interval
+        # If no point chosen yet, or the last point doesn't stab this interval
         if last_point is None or last_point < a:
-            # Place a new point at the right endpoint (stabs as many future intervals as possible)
+            # Pick the right endpoint of this interval as the stabbing point
             last_point = b
             count += 1
-        # else: last_point is in [a, b] because last_point >= a and last_point <= b
-        # (since we sorted by b and last_point was set to some previous b' <= b,
-        #  and we only enter else when last_point >= a, so a <= last_point <= b)
+        # else: last_point >= a and last_point <= b (since intervals sorted by b,
+        # and last_point was set to some previous b <= current b), so it stabs this interval
 
     return count

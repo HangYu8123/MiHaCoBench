@@ -1,0 +1,13 @@
+{
+  "id": "cb09_streaming_covariance",
+  "category": "compositional",
+  "title": "Single-pass numerically-stable streaming covariance",
+  "weight": 4,
+  "packages": ["numpy"],
+  "entrypoints": {"module": "solution.py", "callables": ["streaming_stats"], "cli": false},
+  "grader": "grader/test_cb09.py",
+  "steps": null,
+  "complexity_target": null,
+  "created": "2026-06-17",
+  "source": "Online single-pass mean/variance/covariance/correlation over an (x,y) stream. Intended solution uses numerically stable Welford + co-moment updates; the naive E[x^2]-E[x]^2 / E[xy]-E[x]E[y] formulas catastrophically cancel on large-offset data. Ground truth: numpy var/cov computed on de-meaned (small-magnitude) reference arrays."
+}

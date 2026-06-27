@@ -1,5 +1,5 @@
 """
-Data Analysis 05 — experiment_anova: One-Way ANOVA with Bonferroni Correction
+solution.py — One-Way ANOVA with Bonferroni Correction
 """
 
 import argparse
@@ -7,7 +7,6 @@ import json
 import math
 import os
 import sys
-from typing import Optional
 
 import matplotlib
 matplotlib.use("Agg")
@@ -18,58 +17,33 @@ from scipy.stats import f_oneway, ttest_ind
 
 
 def analyze(df: pd.DataFrame) -> dict:
-    """
-    Performs a one-way ANOVA and pairwise t-tests with Bonferroni correction.
+    """Performs one-way ANOVA and pairwise t-tests with Bonferroni correction."""
+    groups = ["ctrl", "low", "high"]
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame with columns 'group' (categorical) and 'response' (float).
-
-    Returns
-    -------
-    dict with keys:
-        group_means      : dict[str, float]
-        anova_F          : float
-        anova_p          : float
-        significant      : bool
-        significant_pairs: list[list[str]]
-    """
     # Compute group means
-    group_means = {}
-    for grp, sub in df.groupby("group"):
-        group_means[str(grp)] = float(sub["response"].mean())
-
-    # Extract data per group
-    groups = sorted(df["group"].unique())
-    data_by_group = {str(g): df.loc[df["group"] == g, "response"].values for g in groups}
+    group_means = {g: float(df[df["group"] == g]["response"].mean()) for g in groups}
 
     # One-way ANOVA
-    arrays = [data_by_group[str(g)] for g in groups]
-    F_stat, p_val = f_oneway(*arrays)
-    anova_F = float(F_stat)
+    arrays = [df[df["group"] == g]["response"].values for g in groups]
+    f_stat, p_val = f_oneway(*arrays)
+    anova_F = float(f_stat)
     anova_p = float(p_val)
-    significant = bool(anova_p < 0.05)
+    significant = anova_p < 0.05
 
-    # Pairwise t-tests with Bonferroni correction
-    # Fixed pairs: (ctrl, low), (ctrl, high), (low, high)
-    pair_names = [("ctrl", "low"), ("ctrl", "high"), ("low", "high")]
+    # Pairwise t-tests with Bonferroni correction (3 comparisons fixed)
     n_comparisons = 3
-
+    pairs = [("ctrl", "low"), ("ctrl", "high"), ("low", "high")]
     significant_pairs = []
-    for g1, g2 in pair_names:
-        arr1 = data_by_group.get(g1)
-        arr2 = data_by_group.get(g2)
-        if arr1 is None or arr2 is None:
-            continue
-        _, raw_p = ttest_ind(arr1, arr2)
-        corrected_p = min(float(raw_p) * n_comparisons, 1.0)
+    for g1, g2 in pairs:
+        a1 = df[df["group"] == g1]["response"].values
+        a2 = df[df["group"] == g2]["response"].values
+        _, raw_p = ttest_ind(a1, a2)
+        corrected_p = min(raw_p * n_comparisons, 1.0)
         if corrected_p < 0.05:
-            # Sort alphabetically
             pair = sorted([g1, g2])
             significant_pairs.append(pair)
 
-    # Sort the list lexicographically
+    # Sort significant_pairs lexicographically
     significant_pairs.sort(key=lambda x: (x[0], x[1]))
 
     return {
@@ -81,15 +55,10 @@ def analyze(df: pd.DataFrame) -> dict:
     }
 
 
-def main(argv: Optional[list] = None) -> None:
-    """CLI entry point."""
-    parser = argparse.ArgumentParser(
-        description="One-Way ANOVA with Bonferroni Correction"
-    )
-    parser.add_argument("--data", required=True, help="Path to input CSV file")
-    parser.add_argument(
-        "--output-dir", required=True, help="Directory to write output files"
-    )
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="One-Way ANOVA with Bonferroni Correction")
+    parser.add_argument("--data", required=True, help="Path to CSV file")
+    parser.add_argument("--output-dir", required=True, help="Output directory")
     args = parser.parse_args(argv)
 
     # Read data
@@ -106,50 +75,39 @@ def main(argv: Optional[list] = None) -> None:
     with open(results_path, "w") as f:
         json.dump(results, f)
 
-    # Determine group order for plots
-    groups = sorted(df["group"].unique())
-    data_by_group = {str(g): df.loc[df["group"] == g, "response"].values for g in groups}
-    group_labels = [str(g) for g in groups]
+    groups = ["ctrl", "low", "high"]
 
-    # --- Box plot ---
+    # --- Boxplot ---
     fig, ax = plt.subplots()
-    plot_data = [data_by_group[g] for g in group_labels]
-    ax.boxplot(plot_data, labels=group_labels)
+    data_by_group = [df[df["group"] == g]["response"].values for g in groups]
+    ax.boxplot(data_by_group, labels=groups)
     ax.set_xlabel("Group")
     ax.set_ylabel("Response")
-    ax.set_title("Box Plot by Group")
+    ax.set_title("Response by Group (Boxplot)")
     boxplot_path = os.path.join(args.output_dir, "boxplot.png")
     fig.savefig(boxplot_path)
     plt.close(fig)
 
-    # --- Error bar plot (mean ± 95% CI) ---
+    # --- Error-bar chart (mean ± 95% CI) ---
+    fig, ax = plt.subplots()
     means = []
     cis = []
-    for g in group_labels:
-        arr = data_by_group[g]
-        n = len(arr)
-        m = float(np.mean(arr))
-        s = float(np.std(arr, ddof=1))
-        ci = 1.96 * s / math.sqrt(n)
-        means.append(m)
+    for g in groups:
+        vals = df[df["group"] == g]["response"].values
+        mean = np.mean(vals)
+        std = np.std(vals, ddof=1)
+        n = len(vals)
+        ci = 1.96 * std / math.sqrt(n)
+        means.append(mean)
         cis.append(ci)
 
-    fig, ax = plt.subplots()
-    x_pos = range(len(group_labels))
-    ax.errorbar(
-        x_pos,
-        means,
-        yerr=cis,
-        fmt="o",
-        capsize=5,
-        label="Mean ± 95% CI",
-    )
-    ax.set_xticks(list(x_pos))
-    ax.set_xticklabels(group_labels)
+    x = np.arange(len(groups))
+    ax.errorbar(x, means, yerr=cis, fmt="o", capsize=5)
+    ax.set_xticks(x)
+    ax.set_xticklabels(groups)
     ax.set_xlabel("Group")
-    ax.set_ylabel("Response")
+    ax.set_ylabel("Mean Response")
     ax.set_title("Mean ± 95% CI by Group")
-    ax.legend()
     errorbar_path = os.path.join(args.output_dir, "errorbar.png")
     fig.savefig(errorbar_path)
     plt.close(fig)

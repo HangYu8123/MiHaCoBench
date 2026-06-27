@@ -61,6 +61,7 @@ TIME_BUDGETS = {
     "swe_bench": 60,      # multi-file fault-localization mini-repos (SWE-bench style)
     "compositional": 60,  # multi-library composition (BigCodeBench style)
     "competitive": 30,    # contest-level; tight gate so wrong complexity times out (LiveCodeBench/APPS style)
+    "harness": 60,        # harness-discriminating: subtle constraint-dense contracts a single shot mis-handles
 }
 
 

@@ -1,117 +1,71 @@
-"""
-sheet.py — Public facade exposing the Sheet class.
+"""Public Sheet facade for the spreadsheet formula engine."""
 
-The grader imports only:
-    from sheet import Sheet
-"""
+import sys
+import os
 
-from lexer import tokenize
+# Ensure sibling modules are importable when grader imports from this file's directory
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+
+from lexer import lex
 from parser import parse
 from evaluator import evaluate
 
 
 class Sheet:
-    """
-    Mini spreadsheet engine.
-
-    * set_cell(ref, content)  — store raw content
-    * get_value(ref)          — evaluate and return float | str
-    * recalculate()           — force re-evaluation of all formula cells
-    """
+    """Mini spreadsheet engine with lazy formula evaluation."""
 
     def __init__(self):
-        # Maps ref -> raw string content (e.g. "3.5", "hello", "=A1+A2")
         self._cells: dict[str, str] = {}
-        # Evaluated cache: ref -> float | str
-        self._cache: dict[str, object] = {}
-        # Set of refs currently being evaluated (for cycle detection)
-        self._visiting: set[str] = set()
+        self._evaluating: set[str] = set()
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     def set_cell(self, ref: str, content: str) -> None:
-        """
-        Store *content* in cell *ref*.
-
-        * If content can be parsed as a float, it is stored as-is (as a
-          string) but will be returned as float by get_value.
-        * Formulae start with '='.
-        * Everything else is stored as text.
-        """
-        ref = ref.upper()
+        """Store raw content for a cell."""
         self._cells[ref] = content
-        # Invalidate cache for this cell (and potentially dependents; here we
-        # do a simple full-cache invalidation to stay correct).
-        self._cache.pop(ref, None)
 
-    def get_value(self, ref: str) -> 'float | str':
-        """
-        Evaluate and return the value of cell *ref*.
+    def get_value(self, ref: str) -> float | str:
+        """Return the evaluated value of a cell."""
+        content = self._cells.get(ref)
 
-        * Unset cells return 0.0.
-        * Number content returns float.
-        * Text content returns str.
-        * Formula content is evaluated lazily and cached.
-        """
-        ref = ref.upper()
-
-        # Return cached value if available
-        if ref in self._cache:
-            return self._cache[ref]
-
-        # Unset cell → 0.0
-        if ref not in self._cells:
+        # Unset cell -> 0.0
+        if content is None:
             return 0.0
-
-        content = self._cells[ref]
 
         # Formula
         if content.startswith('='):
-            # Cycle detection
-            if ref in self._visiting:
-                raise ValueError(f"Circular reference detected involving {ref}")
-            self._visiting.add(ref)
+            if ref in self._evaluating:
+                raise ValueError(
+                    f"Circular reference detected: {ref} depends on itself"
+                )
+            self._evaluating.add(ref)
             try:
-                formula_body = content[1:]  # strip leading '='
-                tokens = tokenize(formula_body)
+                formula = content[1:]
+                tokens = lex(formula)
                 ast = parse(tokens)
-                value = evaluate(ast, self)
-                # Normalise numeric results to float
-                if isinstance(value, (int, float)) and not isinstance(value, bool):
-                    value = float(value)
-                self._cache[ref] = value
-                return value
+                result = evaluate(ast, self)
             finally:
-                self._visiting.discard(ref)
+                self._evaluating.discard(ref)
+            return result
 
-        # Try to parse as a number
+        # Bare number
         try:
-            value = float(content)
-            self._cache[ref] = value
-            return value
+            return float(content)
         except ValueError:
-            # Plain text
-            self._cache[ref] = content
-            return content
+            pass
+
+        # Text
+        return content
 
     def recalculate(self) -> None:
-        """
-        Force re-evaluation of all formula cells.
+        """Force re-evaluation of all formula cells on next access.
 
-        Clears the entire cache first, then evaluates every formula cell so
-        that subsequent get_value calls return up-to-date results.
+        Since evaluation is lazy (no memoization cache), this is a no-op
+        for correctness.  We also reset the cycle-detection set to clear
+        any inconsistent state left by a previous exception.
         """
-        # Full cache invalidation
-        self._cache.clear()
-
-        # Re-evaluate all formula cells (non-formula cells are cheap)
-        for ref in list(self._cells.keys()):
-            try:
-                self.get_value(ref)
-            except ValueError:
-                # Propagate cycle errors but don't abort recalculation of
-                # other cells.  The error will be raised again on explicit
-                # get_value.
-                pass
+        self._evaluating = set()

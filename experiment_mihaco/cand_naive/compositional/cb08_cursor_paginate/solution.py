@@ -1,3 +1,8 @@
+"""
+Compositional 08 — cursor_paginate
+Stable cursor-based (keyset) pagination over a sorted pandas DataFrame.
+"""
+
 import base64
 import json
 import pandas
@@ -7,46 +12,35 @@ def paginate(df: pandas.DataFrame, sort_key: str, page_size: int, cursor: str | 
     """
     Return one page of df under stable cursor pagination.
 
-    Ordering: rows are ordered by (df[sort_key] ASC, df["id"] ASC).
-    The cursor is exclusive: a page returns the first page_size rows strictly
-    after the cursor position.
+    Ordering: (df[sort_key] ASC, df["id"] ASC).
+    Cursor is exclusive — the first page_size rows strictly after the cursor position.
 
-    Args:
-        df: pandas DataFrame to paginate
-        sort_key: column name to sort by (ascending)
-        page_size: number of rows per page (must be >= 1)
-        cursor: opaque base64-encoded cursor token, or None to start from beginning
-
-    Returns:
-        dict with keys:
-            - rows: list of row dicts in (sort_key, id) order
-            - next_cursor: opaque token for the last returned row, or None if last row reached
-
-    Raises:
-        ValueError: if cursor is malformed or page_size < 1
-        KeyError: if "id" or sort_key column is missing from df
+    Returns a dict with:
+      - "rows": list of record dicts in (sort_key, id) order
+      - "next_cursor": opaque base64 token of last returned row, or None if last row reached
     """
     # Validate page_size
     if page_size < 1:
         raise ValueError(f"page_size must be >= 1, got {page_size}")
 
-    # Validate required columns (raises KeyError if missing)
+    # Validate required columns
     if "id" not in df.columns:
         raise KeyError("'id' column is missing from df")
     if sort_key not in df.columns:
-        raise KeyError(f"'{sort_key}' column is missing from df")
+        raise KeyError(f"sort_key column '{sort_key}' is missing from df")
 
-    # Sort the dataframe by (sort_key ASC, id ASC)
-    sorted_df = df.sort_values(by=[sort_key, "id"], ascending=[True, True], kind="stable")
+    # Sort the dataframe by (sort_key ASC, id ASC) — do not mutate original
+    sorted_df = df.sort_values(by=[sort_key, "id"], ascending=[True, True], kind="mergesort").reset_index(drop=True)
 
-    # Parse cursor if provided
-    cursor_sort_val = None
-    cursor_id = None
-    if cursor is not None:
+    if cursor is None:
+        # Start from the beginning
+        start_idx = 0
+    else:
+        # Decode the cursor token
         try:
-            decoded = base64.b64decode(cursor)
-            payload = json.loads(decoded)
-            if not isinstance(payload, list) or len(payload) != 2:
+            decoded_bytes = base64.b64decode(cursor)
+            payload = json.loads(decoded_bytes.decode("utf-8"))
+            if not (isinstance(payload, list) and len(payload) == 2):
                 raise ValueError("Cursor payload must be a JSON array of [sort_value, id]")
             cursor_sort_val, cursor_id = payload[0], payload[1]
         except (Exception,) as e:
@@ -54,54 +48,51 @@ def paginate(df: pandas.DataFrame, sort_key: str, page_size: int, cursor: str | 
                 raise
             raise ValueError(f"Malformed cursor token: {e}") from e
 
-    # Filter rows that come strictly after the cursor
-    if cursor is None:
-        # Start from beginning
-        page_df = sorted_df
-    else:
-        # Find rows where (sort_key, id) > (cursor_sort_val, cursor_id) lexicographically
-        sort_vals = sorted_df[sort_key]
-        id_vals = sorted_df["id"]
+        # Find the first row strictly after (cursor_sort_val, cursor_id)
+        # "Strictly after" in (sort_key, id) lexicographic order:
+        #   row[sort_key] > cursor_sort_val
+        #   OR (row[sort_key] == cursor_sort_val AND row["id"] > cursor_id)
+        col = sorted_df[sort_key]
+        id_col = sorted_df["id"]
 
-        # Row is after cursor if:
-        # sort_val > cursor_sort_val, OR
-        # sort_val == cursor_sort_val AND id > cursor_id
-        mask = (sort_vals > cursor_sort_val) | (
-            (sort_vals == cursor_sort_val) & (id_vals > cursor_id)
-        )
-        page_df = sorted_df[mask]
+        after_mask = (col > cursor_sort_val) | ((col == cursor_sort_val) & (id_col > cursor_id))
 
-    # Take first page_size rows
-    page_rows = page_df.head(page_size)
+        # Find index of first True in after_mask
+        true_indices = after_mask[after_mask].index
+        if len(true_indices) == 0:
+            # Nothing after cursor — return empty page
+            return {"rows": [], "next_cursor": None}
+        start_idx = true_indices[0]
 
-    # Convert to list of dicts
-    rows = page_rows.to_dict(orient="records")
+    # Slice page_size rows starting from start_idx
+    page_df = sorted_df.iloc[start_idx: start_idx + page_size]
+
+    rows = page_df.to_dict(orient="records")
+
+    if len(rows) == 0:
+        return {"rows": [], "next_cursor": None}
 
     # Determine next_cursor
-    next_cursor = None
-    if len(rows) > 0:
-        last_row = page_rows.iloc[-1]
-        last_sort_val = last_row[sort_key]
-        last_id = last_row["id"]
+    # next_cursor is None if the last row of the page is the last row of the whole ordering
+    last_row = page_df.iloc[-1]
+    last_global_idx = start_idx + len(rows) - 1
+    total_rows = len(sorted_df)
 
-        # Check if this is the last row in the full ordering
-        # Count rows strictly after the last returned row
-        all_sort_vals = sorted_df[sort_key]
-        all_id_vals = sorted_df["id"]
+    if last_global_idx >= total_rows - 1:
+        # The last returned row is the final row — no trailing empty page
+        next_cursor = None
+    else:
+        # Encode cursor as base64(json([sort_val, id]))
+        sort_val = last_row[sort_key]
+        row_id = last_row["id"]
 
-        after_mask = (all_sort_vals > last_sort_val) | (
-            (all_sort_vals == last_sort_val) & (all_id_vals > last_id)
-        )
-        rows_after = sorted_df[after_mask]
+        # Handle numpy/pandas scalar types for JSON serialization
+        if hasattr(sort_val, "item"):
+            sort_val = sort_val.item()
+        if hasattr(row_id, "item"):
+            row_id = row_id.item()
 
-        if len(rows_after) > 0:
-            # There are more rows after; encode the cursor for the last returned row
-            payload = [last_sort_val, last_id]
-            token_bytes = json.dumps(payload, separators=(',', ':')).encode('utf-8')
-            next_cursor = base64.b64encode(token_bytes).decode('ascii')
-        # else: next_cursor remains None (last row reached, no trailing empty page)
+        payload = json.dumps([sort_val, row_id], separators=(",", ":"))
+        next_cursor = base64.b64encode(payload.encode("utf-8")).decode("ascii")
 
-    return {
-        "rows": rows,
-        "next_cursor": next_cursor,
-    }
+    return {"rows": rows, "next_cursor": next_cursor}

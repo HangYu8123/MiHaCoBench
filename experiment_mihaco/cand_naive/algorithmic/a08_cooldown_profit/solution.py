@@ -1,16 +1,3 @@
-"""
-Algorithmic 08 — max_profit: weighted interval scheduling with a mandatory cooldown gap.
-
-Algorithm: O(n log n) DP with binary search.
-1. Sort jobs by end time.
-2. For each job i (sorted by end), compute dp[i] = best profit using jobs from [0..i]
-   where job i is included.
-   - We need the best dp[j] for all j where jobs[j].end + gap <= jobs[i].start.
-   - We use bisect to find the last eligible job, plus a prefix-maximum array to get
-     the best value in O(1) after the binary search.
-3. Answer is the maximum over all dp[i] (and 0 for empty).
-"""
-
 import bisect
 
 
@@ -20,41 +7,51 @@ def max_profit(jobs: list[tuple], gap: int) -> int:
     if not jobs:
         return 0
 
-    # Sort by end time (do not mutate input)
+    # Sort jobs by end time
     sorted_jobs = sorted(jobs, key=lambda j: j[1])
     n = len(sorted_jobs)
 
-    # Extract end times for binary search
+    # ends[i] = end time of the i-th job (0-indexed, after sorting)
     ends = [j[1] for j in sorted_jobs]
 
-    # dp[i] = maximum profit of a valid schedule where job i is the LAST selected job
-    dp = [0] * n
+    # dp[i] = best profit considering jobs 0..i-1 (first i jobs)
+    # dp[0] = 0 (no jobs selected)
+    # dp[i+1] = max(dp[i],   # skip job i
+    #               sorted_jobs[i][2] + best_dp_ending_before_start_i - gap)
+    # We need max dp[k] for all k where ends[k-1] + gap <= start_i
+    # i.e., ends[k-1] <= start_i - gap
+    # i.e., the latest job we can take ends at start_i - gap or earlier
 
-    # prefix_max[i] = max(dp[0], dp[1], ..., dp[i])
-    # We build this as we go.
-    prefix_max = [0] * n
+    # We maintain prefix_max[i] = max(dp[0], dp[1], ..., dp[i])
+    # To find best dp for jobs ending <= threshold:
+    #   find largest index k where ends[k-1] <= threshold (i.e., ends[k] <= threshold for 1-indexed ends array)
+    #   use prefix_max[k]
+
+    dp = [0] * (n + 1)
+    prefix_max = [0] * (n + 1)
 
     for i in range(n):
         start_i, end_i, profit_i = sorted_jobs[i]
+        # We need the best dp[k] where k corresponds to jobs with end <= start_i - gap
+        # ends array is 0-indexed: ends[j] = end of job j
+        # dp[k] represents profit using first k jobs (jobs 0..k-1)
+        # dp[k] considers job k-1 as the last one we might choose
+        # We want jobs ending at or before (start_i - gap)
+        threshold = start_i - gap
+        # Find rightmost index in ends where ends[idx] <= threshold
+        # bisect_right returns insertion point for threshold+1, so all values <= threshold are at indices < that
+        # ends is sorted since we sorted by end time
+        # We want: largest j such that ends[j] <= threshold (0-indexed job index)
+        # That corresponds to dp[j+1] being available
+        # Using bisect_right: idx = bisect_right(ends, threshold) gives # of jobs with end <= threshold
+        # So dp[idx] is the best we can use (taking first idx jobs into account)
+        idx = bisect.bisect_right(ends, threshold)
+        # prefix_max[idx] = max(dp[0], ..., dp[idx])
+        best_before = prefix_max[idx]
 
-        # Find the last job j such that ends[j] + gap <= start_i
-        # i.e., ends[j] <= start_i - gap
-        # We want the rightmost j with ends[j] <= start_i - gap
-        # bisect_right(ends, start_i - gap) - 1 gives the index of the last element <= target
-        target = start_i - gap
-        pos = bisect.bisect_right(ends, target) - 1
+        # Option 1: skip job i
+        # Option 2: take job i
+        dp[i + 1] = max(dp[i], best_before + profit_i)
+        prefix_max[i + 1] = max(prefix_max[i], dp[i + 1])
 
-        if pos < 0:
-            # No compatible earlier job; just take this job alone
-            dp[i] = profit_i
-        else:
-            # Best profit from any compatible earlier ending job + profit_i
-            dp[i] = prefix_max[pos] + profit_i
-
-        # Update prefix max
-        if i == 0:
-            prefix_max[i] = dp[i]
-        else:
-            prefix_max[i] = max(prefix_max[i - 1], dp[i])
-
-    return prefix_max[n - 1]
+    return dp[n]

@@ -1,157 +1,114 @@
+"""
+solution.py — One-Way ANOVA with Bonferroni Correction
+"""
+
 import argparse
 import json
 import os
-import sys
 
 import matplotlib
-matplotlib.use("Agg")
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
 import numpy as np
 import pandas as pd
-from scipy import stats
+from scipy.stats import f_oneway, ttest_ind
 
 
 def analyze(df: pd.DataFrame) -> dict:
-    """
-    Perform one-way ANOVA and pairwise t-tests with Bonferroni correction.
+    """Perform one-way ANOVA and pairwise t-tests with Bonferroni correction."""
+    groups = ['ctrl', 'low', 'high']
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame with columns 'group' (str) and 'response' (float).
+    # Per-group response arrays
+    data = {g: df.loc[df['group'] == g, 'response'].values for g in groups}
 
-    Returns
-    -------
-    dict with keys:
-        group_means, anova_F, anova_p, significant, significant_pairs
-    """
-    # Group means — cast to float to avoid numpy.float64 serialization issues
-    group_means = {
-        k: float(v)
-        for k, v in df.groupby("group")["response"].mean().items()
-    }
-
-    # Extract per-group arrays
-    arr_ctrl = df.loc[df["group"] == "ctrl", "response"].to_numpy()
-    arr_low = df.loc[df["group"] == "low", "response"].to_numpy()
-    arr_high = df.loc[df["group"] == "high", "response"].to_numpy()
+    # Group means — explicit order: ctrl, low, high; convert to plain Python float
+    group_means = {g: float(data[g].mean()) for g in groups}
 
     # One-way ANOVA
-    anova_result = stats.f_oneway(arr_ctrl, arr_low, arr_high)
-    anova_F = float(anova_result.statistic)
-    anova_p = float(anova_result.pvalue)
+    f_stat, p_val = f_oneway(data['ctrl'], data['low'], data['high'])
+    anova_F = float(f_stat)
+    anova_p = float(p_val)
     significant = bool(anova_p < 0.05)
 
-    # Pairwise t-tests with Bonferroni correction (3 comparisons)
-    # Pairs already alphabetically sorted
-    pairs = [
-        ("ctrl", "low"),
-        ("ctrl", "high"),
-        ("low", "high"),
-    ]
-    group_arrays = {
-        "ctrl": arr_ctrl,
-        "low": arr_low,
-        "high": arr_high,
-    }
+    # Bonferroni pairwise t-tests — fixed pair iteration order (already alpha-sorted within pair)
+    pairs_to_test = [('ctrl', 'low'), ('ctrl', 'high'), ('low', 'high')]
     n_comparisons = 3
-
     significant_pairs = []
-    for a, b in pairs:
-        raw_p = stats.ttest_ind(group_arrays[a], group_arrays[b]).pvalue
+    for g1, g2 in pairs_to_test:
+        _, raw_p = ttest_ind(data[g1], data[g2], equal_var=True)
         corrected_p = min(float(raw_p) * n_comparisons, 1.0)
         if corrected_p < 0.05:
-            # Ensure alphabetical order in the pair
-            pair = sorted([a, b])
-            significant_pairs.append(pair)
+            # Pair is already alphabetically sorted; add as list
+            significant_pairs.append([g1, g2])
 
-    # Sort lexicographically (pairs are already in lex order from iteration,
-    # but sort explicitly to be safe)
-    significant_pairs.sort()
+    # Sort output list lexicographically by first then second element
+    significant_pairs.sort(key=lambda pair: (pair[0], pair[1]))
 
     return {
-        "group_means": group_means,
-        "anova_F": anova_F,
-        "anova_p": anova_p,
-        "significant": significant,
-        "significant_pairs": significant_pairs,
+        'group_means': group_means,
+        'anova_F': anova_F,
+        'anova_p': anova_p,
+        'significant': significant,
+        'significant_pairs': significant_pairs,
     }
 
 
-def main(argv: list = None):
-    parser = argparse.ArgumentParser(
-        description="One-Way ANOVA with Bonferroni Correction"
-    )
-    parser.add_argument("--data", required=True, help="Path to the CSV file")
-    parser.add_argument(
-        "--output-dir", required=True, help="Directory for output files"
-    )
+def main(argv=None):
+    """CLI entry point."""
+    parser = argparse.ArgumentParser(description='One-Way ANOVA with Bonferroni Correction')
+    parser.add_argument('--data', required=True, help='Path to input CSV file')
+    parser.add_argument('--output-dir', dest='output_dir', required=True,
+                        help='Directory for output files')
     args = parser.parse_args(argv)
 
-    # Ensure output directory exists
-    os.makedirs(args.output_dir, exist_ok=True)
-
-    # Load data
+    # Read data
     df = pd.read_csv(args.data)
 
     # Run analysis
     result = analyze(df)
 
+    # Create output directory if needed
+    os.makedirs(args.output_dir, exist_ok=True)
+
     # Write results.json
-    results_path = os.path.join(args.output_dir, "results.json")
-    with open(results_path, "w") as f:
+    with open(os.path.join(args.output_dir, 'results.json'), 'w') as f:
         json.dump(result, f)
 
-    # Extract group arrays for plotting (alphabetical order for consistency)
-    arr_ctrl = df.loc[df["group"] == "ctrl", "response"].to_numpy()
-    arr_low = df.loc[df["group"] == "low", "response"].to_numpy()
-    arr_high = df.loc[df["group"] == "high", "response"].to_numpy()
+    groups = ['ctrl', 'low', 'high']
+    data_lists = [df.loc[df['group'] == g, 'response'].values for g in groups]
 
-    group_labels = ["ctrl", "low", "high"]
-    group_data = [arr_ctrl, arr_low, arr_high]
-
-    # Box plot
+    # Boxplot: one box per group
     fig, ax = plt.subplots()
-    ax.boxplot(group_data, labels=group_labels)
-    ax.set_title("Box Plot by Group")
-    ax.set_xlabel("Group")
-    ax.set_ylabel("Response")
-    boxplot_path = os.path.join(args.output_dir, "boxplot.png")
-    plt.savefig(boxplot_path)
+    ax.boxplot(data_lists, tick_labels=groups)
+    ax.set_title('Response by Group')
+    ax.set_xlabel('Group')
+    ax.set_ylabel('Response')
+    fig.savefig(os.path.join(args.output_dir, 'boxplot.png'))
     plt.close(fig)
 
-    # Error-bar plot (mean +/- 95% CI using sample std ddof=1)
+    # Errorbar: mean ± 95% CI (1.96 * std / sqrt(n))
     means = []
-    ci_half_widths = []
-    for arr in group_data:
-        m = float(np.mean(arr))
-        s = float(np.std(arr, ddof=1))
+    ci_halfwidths = []
+    for g in groups:
+        arr = df.loc[df['group'] == g, 'response'].values
         n = len(arr)
-        ci_hw = 1.96 * s / np.sqrt(n)
-        means.append(m)
-        ci_half_widths.append(ci_hw)
+        std = float(np.std(arr, ddof=1))
+        mean = float(np.mean(arr))
+        means.append(mean)
+        ci_halfwidths.append(1.96 * std / np.sqrt(n))
 
+    x_positions = list(range(len(groups)))
     fig, ax = plt.subplots()
-    x_pos = np.arange(len(group_labels))
-    ax.errorbar(
-        x_pos,
-        means,
-        yerr=ci_half_widths,
-        fmt="o",
-        capsize=5,
-        linestyle="none",
-    )
-    ax.set_xticks(x_pos)
-    ax.set_xticklabels(group_labels)
-    ax.set_title("Mean +/- 95% CI by Group")
-    ax.set_xlabel("Group")
-    ax.set_ylabel("Response")
-    errorbar_path = os.path.join(args.output_dir, "errorbar.png")
-    plt.savefig(errorbar_path)
+    ax.errorbar(x_positions, means, yerr=ci_halfwidths, fmt='o', capsize=5)
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(groups)
+    ax.set_title('Mean ± 95% CI by Group')
+    ax.set_xlabel('Group')
+    ax.set_ylabel('Mean Response')
+    fig.savefig(os.path.join(args.output_dir, 'errorbar.png'))
     plt.close(fig)
 
-    sys.exit(0)
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

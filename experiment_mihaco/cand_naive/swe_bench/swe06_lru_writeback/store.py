@@ -1,14 +1,14 @@
 class Backing:
     def __init__(self) -> None:
         """Create an empty dict-backed store."""
-        self._store = {}
+        self._data = {}
 
     def get(self, key):
         """Return the value stored under `key`, or raise KeyError if absent."""
-        if key not in self._store:
+        if key not in self._data:
             raise KeyError(key)
-        return self._store[key]
+        return self._data[key]
 
     def set(self, key, value) -> None:
         """Insert or overwrite the value stored under `key`."""
-        self._store[key] = value
+        self._data[key] = value

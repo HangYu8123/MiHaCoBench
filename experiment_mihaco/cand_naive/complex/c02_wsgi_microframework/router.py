@@ -1,4 +1,4 @@
-"""router.py — Route and Router classes for the WSGI micro-framework."""
+"""router.py — Route and Router with path converters."""
 
 import re
 
@@ -10,56 +10,57 @@ class Route:
         self.path_template = path_template
         self.methods = [m.upper() for m in methods]
         self.handler = handler
-        # Pre-compile the regex pattern and store converter info
+        # Compile the path template into a regex pattern + converter map
         self._pattern, self._converters = _compile_template(path_template)
 
     def match_path(self, path: str):
-        """Try to match path. Returns dict of path_params or None if no match."""
+        """Try to match *path*. Returns a dict of path params on success, None otherwise."""
         m = self._pattern.fullmatch(path)
         if m is None:
             return None
-        raw_params = m.groupdict()
         params = {}
-        for name, value in raw_params.items():
-            converter = self._converters.get(name, "str")
-            if converter == "int":
-                params[name] = int(value)
-            else:
-                params[name] = value
+        for name, value in m.groupdict().items():
+            converter = self._converters.get(name, str)
+            try:
+                params[name] = converter(value)
+            except (ValueError, TypeError):
+                return None
         return params
 
 
-def _compile_template(path_template: str):
-    """Compile a path template into a regex pattern and a dict of converters.
-
-    Supported converters:
-      <name>       -> matches any non-empty non-slash segment, captured as str
-      <int:name>   -> matches decimal integer segment, captured as int
+def _compile_template(template: str):
+    """Convert a URL template like '/hello/<name>' or '/item/<int:id>'
+    into a compiled regex and a dict mapping param names to converter callables.
     """
     converters = {}
-    # Replace <int:name> and <name> with named regex groups
-    pattern = ""
-    i = 0
-    while i < len(path_template):
-        if path_template[i] == "<":
-            end = path_template.index(">", i)
-            spec = path_template[i + 1:end]
-            if ":" in spec:
-                converter, name = spec.split(":", 1)
-                converter = converter.strip()
+    # Escape the template for regex, then replace converter segments
+    # We process segment by segment to avoid double-escaping
+    # Split on the angle-bracket segments
+    parts = re.split(r"(<[^>]+>)", template)
+    regex_parts = []
+    for part in parts:
+        if part.startswith("<") and part.endswith(">"):
+            inner = part[1:-1]  # strip < >
+            if ":" in inner:
+                converter_name, param_name = inner.split(":", 1)
+                converter_name = converter_name.strip()
+                param_name = param_name.strip()
             else:
-                converter = "str"
-                name = spec.strip()
-            converters[name] = converter
-            if converter == "int":
-                pattern += f"(?P<{name}>[0-9]+)"
+                converter_name = "str"
+                param_name = inner.strip()
+
+            if converter_name == "int":
+                regex_parts.append(f"(?P<{param_name}>[0-9]+)")
+                converters[param_name] = int
             else:
-                pattern += f"(?P<{name}>[^/]+)"
-            i = end + 1
+                # Default: match any non-empty, non-slash segment
+                regex_parts.append(f"(?P<{param_name}>[^/]+)")
+                converters[param_name] = str
         else:
-            pattern += re.escape(path_template[i])
-            i += 1
-    return re.compile(pattern), converters
+            regex_parts.append(re.escape(part))
+
+    pattern = re.compile("".join(regex_parts))
+    return pattern, converters
 
 
 class Router:
@@ -85,11 +86,13 @@ class Router:
 
         for route in self._routes:
             params = route.match_path(path)
-            if params is not None:
-                path_matched = True
-                if method in route.methods:
-                    return route.handler, params
+            if params is None:
+                continue
+            # Path matches
+            path_matched = True
+            if method in route.methods:
+                return (route.handler, params)
 
         if path_matched:
-            return None, 405
-        return None, 404
+            return (None, 405)
+        return (None, 404)

@@ -12,17 +12,15 @@ class Router:
     def match(self, path: str) -> tuple[str, dict] | None:
         """Return (handler_name, params) for the first matching route, else None."""
         path_segs = split_path(path)
-        for pattern_segs, handler_name in self._routes:
-            if len(pattern_segs) != len(path_segs):
+        for pat_segs, handler in self._routes:
+            if len(pat_segs) != len(path_segs):
                 continue
-            params: dict[str, str] = {}
-            matched = True
-            for pat_seg, path_seg in zip(pattern_segs, path_segs):
-                if pat_seg.startswith('{') and pat_seg.endswith('}'):
-                    params[pat_seg[1:-1]] = path_seg
-                elif pat_seg != path_seg:
-                    matched = False
+            params = {}
+            for ps, seg in zip(pat_segs, path_segs):
+                if ps.startswith("{") and ps.endswith("}"):
+                    params[ps[1:-1]] = seg
+                elif ps != seg:
                     break
-            if matched:
-                return (handler_name, params)
+            else:
+                return handler, params
         return None

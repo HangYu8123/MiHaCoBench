@@ -1,45 +1,39 @@
-"""loaders.py — SQLAlchemy loader that persists a DataFrame to an in-memory DB."""
+"""loaders.py — SQLAlchemy loader for persisting a DataFrame to an in-memory DB."""
 
 from __future__ import annotations
 
 import pandas as pd
-import sqlalchemy as sa
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
 
 
-class SQLAlchemyLoader:
-    """Loads a DataFrame into a SQLAlchemy in-memory SQLite database."""
+class SQLiteLoader:
+    """Loads a DataFrame into an in-memory SQLite database via SQLAlchemy 2.0."""
 
-    def __init__(self, table_name: str, engine: sa.Engine | None = None) -> None:
-        self.table_name = table_name
-        if engine is None:
-            engine = sa.create_engine("sqlite:///:memory:", future=True)
-        self.engine = engine
-        self._loaded = False
+    def __init__(self) -> None:
+        self._engine: Engine = create_engine("sqlite:///:memory:")
+        self._table: str | None = None
+        self._loaded: bool = False
 
-    def load(self, df: pd.DataFrame) -> None:
-        """Persist the DataFrame to the database table.
-
-        Uses if_exists='replace' so repeated calls are idempotent.
-        """
-        df.to_sql(
-            self.table_name,
-            con=self.engine,
-            if_exists="replace",
-            index=False,
-        )
+    def load(self, df: pd.DataFrame, table: str) -> None:
+        """Persist df to the named table. Uses if_exists='replace' for idempotency."""
+        self._table = table
+        df.to_sql(table, con=self._engine, if_exists="replace", index=False)
         self._loaded = True
 
-    def query(self, sql: str) -> list[dict]:
-        """Execute a SQL string and return a list of row dicts.
+    @property
+    def engine(self) -> Engine:
+        return self._engine
 
-        Raises RuntimeError if load() has not been called yet.
-        """
+    @property
+    def loaded(self) -> bool:
+        return self._loaded
+
+    def query(self, sql: str) -> list[dict]:
+        """Execute a raw SQL string and return a list of row dicts."""
         if not self._loaded:
-            raise RuntimeError(
-                "query() called before run(). Call run() first to load data."
-            )
-        with self.engine.connect() as conn:
+            raise RuntimeError("query() called before run(); call run() first.")
+        with self._engine.connect() as conn:
             result = conn.execute(text(sql))
             columns = list(result.keys())
             rows = result.fetchall()

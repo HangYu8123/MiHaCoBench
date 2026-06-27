@@ -7,6 +7,10 @@ __pycache__/
 results.json
 experiment_mihaco/results/
 
+# Agentic benchmark (ponytail-aligned) live-run output: kept workspaces + CLI JSON
+benchmarks/agentic/runs/
+_claude.json
+
 # Ignore the .github/ working tree EXCEPT the CI workflows, which must be tracked
 # so GitHub Actions runs them. (The HarnessFlow pack under .github/HarnessFlow/ stays
 # untracked by this rule — drop the `.github/*` line if you want to version it too.)

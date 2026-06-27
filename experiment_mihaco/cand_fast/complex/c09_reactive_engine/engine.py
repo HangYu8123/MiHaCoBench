@@ -1,35 +1,32 @@
 """
-engine.py — Public facade for the reactive dataflow engine.
+engine.py — Public facade: defines the Engine class.
 
-Implements the Engine class with:
-  - set_value(name, value): define/replace a constant cell
-  - set_formula(name, deps, fn): define/replace a computed cell
-  - get(name): lazy memoized read
-  - recompute_count(name): number of actual recomputations
-  - batch(updates: dict): atomic multi-cell set_value
+Imports from graph.py (same directory) for dependency-graph operations.
 """
+import sys
+import os
 
-from graph import Graph
+# Ensure graph.py is importable regardless of the working directory
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+
+from graph import DependencyGraph
 
 
 class Engine:
     """
     Reactive dataflow engine.
 
-    Cell structure in self._cells[name]:
-        {
-            'kind': 'value' | 'formula',
-            'value': <cached value or constant>,
-            'deps': [...],   # for formula cells
-            'fn': <callable> | None,
-            'dirty': bool,
-            'count': int,    # recompute count
-        }
+    Cells are either *constant* (set_value) or *computed* (set_formula).
+    Reads are lazy and memoized.  Changing a cell's definition invalidates its
+    cached value and the cached values of all transitive dependents.
     """
 
     def __init__(self):
-        self._graph = Graph()
-        self._cells = {}
+        # name -> {type, value, fn, deps, dirty, count}
+        self._cells: dict = {}
+        self._graph = DependencyGraph()
 
     # ------------------------------------------------------------------
     # Public API
@@ -37,162 +34,134 @@ class Engine:
 
     def set_value(self, name, value) -> None:
         """
-        Define/replace a constant cell holding `value`.
-        Invalidates the cell and all transitive dependents.
+        Define or replace a constant cell.
+
+        If the cell was previously a formula cell, remove its formula edges
+        from the dependency graph so stale edges do not linger.
+        Marks the cell and all transitive dependents as dirty.
         """
-        # Ensure node exists in graph
+        # If the cell previously had formula deps, remove them from the graph
+        if name in self._cells and self._cells[name]['type'] == 'formula':
+            self._graph.remove_formula_edges(name)
+
+        # Ensure node exists in graph (so descendants query works)
         self._graph.ensure_node(name)
 
-        # Remove old incoming edges (if this was a formula cell with deps)
-        # Old outgoing edges (where name was a dep of something else) stay —
-        # those represent other cells depending on `name`, which is correct.
-        self._graph.remove_outgoing_edges(name)
+        # Compute which cells need to be invalidated BEFORE writing
+        transitive = self._graph.get_transitive_dependents(name)
 
-        # Store the cell as a constant
-        existing_count = self._cells.get(name, {}).get('count', 0)
+        # Create or update the cell entry
+        if name in self._cells:
+            # Preserve count when switching types — spec is silent on reset
+            existing_count = self._cells[name]['count']
+        else:
+            existing_count = 0
+
         self._cells[name] = {
-            'kind': 'value',
+            'type': 'value',
             'value': value,
-            'deps': [],
             'fn': None,
-            'dirty': False,  # constants are never dirty
+            'deps': [],
+            'dirty': False,   # constant cells are never dirty themselves
             'count': existing_count,
         }
 
-        # Invalidate all transitive dependents
-        dependents = self._graph.get_descendants(name)
-        for dep_name in dependents:
+        # Mark transitive dependents dirty
+        for dep_name in transitive:
             if dep_name in self._cells:
                 self._cells[dep_name]['dirty'] = True
 
     def set_formula(self, name, deps: list, fn) -> None:
         """
-        Define/replace a computed cell.
-        Raises ValueError if a cycle would be introduced.
-        On cycle, leaves engine unchanged (full rollback).
+        Define or replace a computed cell.
+
+        Raises ValueError (with no side-effects) if the new deps would
+        introduce a cycle in the dependency graph.
         """
-        # Take snapshot of graph before any changes
-        graph_snapshot = self._graph.copy_graph_state()
+        # Attempt to update the graph — raises ValueError on cycle,
+        # leaving the graph unchanged.
+        self._graph.ensure_node(name)
+        self._graph.add_or_update_formula(name, deps)
 
-        # Check if adding these deps would create a cycle
-        # We need to simulate: remove old incoming edges for `name`, then add new ones
-        # For cycle detection, work on a copy
-        import networkx as nx
+        # Graph update succeeded — now update the cell dict.
+        existing_count = self._cells[name]['count'] if name in self._cells else 0
 
-        g_copy = graph_snapshot.copy()
-
-        # Ensure name exists
-        if name not in g_copy:
-            g_copy.add_node(name)
-
-        # Remove old incoming edges to `name` (its current dependencies)
-        old_preds = list(g_copy.predecessors(name))
-        for pred in old_preds:
-            g_copy.remove_edge(pred, name)
-
-        # Add new edges dep -> name
-        for dep in deps:
-            if dep not in g_copy:
-                g_copy.add_node(dep)
-            g_copy.add_edge(dep, name)
-
-        # Check for cycles
-        if not nx.is_directed_acyclic_graph(g_copy):
-            raise ValueError(
-                f"Setting formula for '{name}' with deps {deps} would create a cycle."
-            )
-
-        # No cycle — commit the graph changes
-        self._graph.restore_graph_state(g_copy)
-
-        # Save old cell state for rollback if needed (though graph check passed)
-        # Update cell metadata
-        existing_count = self._cells.get(name, {}).get('count', 0)
         self._cells[name] = {
-            'kind': 'formula',
-            'value': None,
-            'deps': list(deps),
+            'type': 'formula',
+            'value': None,       # cache starts empty / dirty
             'fn': fn,
-            'dirty': True,  # formula cells start dirty (need recompute)
+            'deps': list(deps),
+            'dirty': True,
             'count': existing_count,
         }
 
-        # Invalidate all transitive dependents of `name`
-        dependents = self._graph.get_descendants(name)
-        for dep_name in dependents:
+        # Invalidate transitive dependents
+        transitive = self._graph.get_transitive_dependents(name)
+        for dep_name in transitive:
             if dep_name in self._cells:
                 self._cells[dep_name]['dirty'] = True
 
     def get(self, name):
         """
-        Return the cell's value, recomputing lazily if dirty.
+        Return the cell's value, recomputing lazily if the cache is dirty.
+
         Raises KeyError for unknown names.
         """
         if name not in self._cells:
-            raise KeyError(f"Cell '{name}' is not defined.")
+            raise KeyError(name)
 
         cell = self._cells[name]
 
-        if cell['kind'] == 'value':
-            # Constants are always clean
-            return cell['value']
+        if cell['type'] == 'formula' and cell['dirty']:
+            # Recursively resolve dependencies (bottom-up via recursion)
+            args = [self.get(d) for d in cell['deps']]
+            cell['value'] = cell['fn'](*args)
+            cell['dirty'] = False
+            cell['count'] += 1
 
-        # Formula cell
-        if not cell['dirty']:
-            # Cache is clean, return memoized value
-            return cell['value']
-
-        # Dirty formula — recompute
-        dep_values = [self.get(d) for d in cell['deps']]
-        result = cell['fn'](*dep_values)
-
-        # Cache the result
-        cell['value'] = result
-        cell['dirty'] = False
-        cell['count'] += 1
-
-        return result
+        return cell['value']
 
     def recompute_count(self, name) -> int:
         """
-        Return how many times `name` has been actually recomputed.
+        Return how many times *name* has been (re)computed.
+
         Raises KeyError for unknown names.
         """
         if name not in self._cells:
-            raise KeyError(f"Cell '{name}' is not defined.")
+            raise KeyError(name)
         return self._cells[name]['count']
 
     def batch(self, updates: dict) -> None:
         """
         Apply several set_value updates atomically.
-        Invalidation is set-based — each affected cell is marked dirty at most once.
-        """
-        # Collect the union of all transitive dependent sets BEFORE writing
-        # (graph structure doesn't change in batch — only values change)
-        all_affected = set()
-        for name in updates:
-            self._graph.ensure_node(name)
-            all_affected.add(name)
-            all_affected |= self._graph.get_descendants(name)
 
-        # Write all values atomically
-        for name, value in updates.items():
-            # Remove incoming edges (in case this was a formula cell)
-            self._graph.remove_outgoing_edges(name)
-            existing_count = self._cells.get(name, {}).get('count', 0)
-            self._cells[name] = {
-                'kind': 'value',
-                'value': value,
-                'deps': [],
+        Invalidation is set-based: the union of all transitive dependents
+        across all updated keys is computed ONCE before any values are written,
+        then marked dirty in a single pass.
+        """
+        # 1. Pre-compute dirty set across ALL updated keys BEFORE writing
+        dirty_set: set = set()
+        for k in updates:
+            # Remove old formula edges if cell was previously a formula
+            if k in self._cells and self._cells[k]['type'] == 'formula':
+                self._graph.remove_formula_edges(k)
+            self._graph.ensure_node(k)
+            dirty_set |= self._graph.get_transitive_dependents(k)
+
+        # 2. Write all values (constant cells, never dirty themselves)
+        for k, v in updates.items():
+            existing_count = self._cells[k]['count'] if k in self._cells else 0
+            self._cells[k] = {
+                'type': 'value',
+                'value': v,
                 'fn': None,
+                'deps': [],
                 'dirty': False,
                 'count': existing_count,
             }
 
-        # Mark all affected dependents dirty (set-based, no double counting)
-        for dep_name in all_affected:
-            if dep_name in updates:
-                # These are constants — they're already clean
-                continue
+        # 3. Mark the pre-computed dirty set (exclude the updated keys
+        #    themselves, which are now fresh constant cells)
+        for dep_name in dirty_set:
             if dep_name in self._cells:
                 self._cells[dep_name]['dirty'] = True
